@@ -8,6 +8,11 @@
 
 /* Begin PBXFileReference section */
 		AA08A3462E98217B00D07334 /* cmdX.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = cmdX.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D1A1B1112E98217B00D07334 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ContentView.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		D1A1B1122E98217B00D07334 /* cmdXApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = cmdXApp.swift; path = cmdXApp.swift; sourceTree = "<group>"; };
+		D1A1B1132E98217B00D07334 /* KeyInterceptor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = KeyInterceptor.swift; path = KeyInterceptor.swift; sourceTree = "<group>"; };
+		D1A1B1142E98217B00D07334 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OnboardingView.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		D1A1B1152E98217B00D07334 /* WindowAccessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WindowAccessor.swift; path = WindowAccessor.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -48,11 +53,18 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		AA08A3452E98217B00D07334 /* cmdX */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = AA08A3512E98217C00D07334 /* Build configuration list for PBXNativeTarget "cmdX" */;
-			buildPhases = (
-				AA08A3422E98217B00D07334 /* Sources */,
+		AA08A3482E98217B00D07334 /* cmdX */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = cmdX;
+			sourceTree = "<group>";
+			children = (
+				D1A1B1112E98217B00D07334 /* ContentView.swift */,
+				D1A1B1122E98217B00D07334 /* cmdXApp.swift */,
+				D1A1B1132E98217B00D07334 /* KeyInterceptor.swift */,
+				D1A1B1142E98217B00D07334 /* OnboardingView.swift */,
+				D1A1B1152E98217B00D07334 /* WindowAccessor.swift */,
+			);
+		};
 				AA08A3432E98217B00D07334 /* Frameworks */,
 				AA08A3442E98217B00D07334 /* Resources */,
 			);
@@ -119,10 +131,23 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D1A1B1212E98217B00D07334 /* ContentView.swift in Sources */,
+				D1A1B1222E98217B00D07334 /* cmdXApp.swift in Sources */,
+				D1A1B1232E98217B00D07334 /* KeyInterceptor.swift in Sources */,
+				D1A1B1242E98217B00D07334 /* OnboardingView.swift in Sources */,
+				D1A1B1252E98217B00D07334 /* WindowAccessor.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXBuildFile section */
+		D1A1B1212E98217B00D07334 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A1B1112E98217B00D07334 /* ContentView.swift */; };
+		D1A1B1222E98217B00D07334 /* cmdXApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A1B1122E98217B00D07334 /* cmdXApp.swift */; };
+		D1A1B1232E98217B00D07334 /* KeyInterceptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A1B1132E98217B00D07334 /* KeyInterceptor.swift */; };
+		D1A1B1242E98217B00D07334 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A1B1142E98217B00D07334 /* OnboardingView.swift */; };
+		D1A1B1252E98217B00D07334 /* WindowAccessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A1B1152E98217B00D07334 /* WindowAccessor.swift */; };
+/* End PBXBuildFile section */
 
 /* Begin XCBuildConfiguration section */
 		AA08A34F2E98217C00D07334 /* Debug */ = {
@@ -250,7 +275,6 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -265,7 +289,6 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 13.5;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.yonn2222.cmdX;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -284,7 +307,6 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -299,7 +321,6 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 13.5;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.yonn2222.cmdX;
 				PRODUCT_NAME = "$(TARGET_NAME)";

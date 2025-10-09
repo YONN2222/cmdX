@@ -1,24 +1,149 @@
 //
 //  ContentView.swift
-//  cmdX
-//
-//  Created by Yann Pump on 09.10.25.
+//  commandX
 //
 
 import SwiftUI
+import AppKit
+import ServiceManagement
 
 struct ContentView: View {
+    @EnvironmentObject var interceptor: KeyInterceptor
+
+    // MARK: - State
+    @State private var autoLaunch: Bool = false
+
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        VStack(alignment: .leading, spacing: 20) {
+            // Header: App icon + name
+            HStack(alignment: .center, spacing: 12) {
+                Image(nsImage: NSApplication.shared.applicationIconImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 40, height: 40)
+                    .cornerRadius(8)
+                    .accessibilityHidden(true)
+
+                Text("cmdX")
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundColor(.primary)
+                    .accessibilityLabel("App name: cmdX")
+            }
+
+            // Description
+            Text("Cut and move files in Finder with familiar shortcuts: press Command-X to mark files, then Command-V to move them.")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            // Controls
+            VStack(alignment: .leading, spacing: 12) {
+                Button(action: openAccessibilitySettings) {
+                    Text("Open Accessibility Settings")
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+                .help("Grant Accessibility permission so cmdX can listen for shortcuts and trigger Move in Finder.")
+
+                Toggle(isOn: $autoLaunch) {
+                    Text("Start automatically on launch")
+                }
+                .toggleStyle(.checkbox)
+                .onChange(of: autoLaunch) { newValue in
+                    if #available(macOS 13.0, *) {
+                        do {
+                            if newValue {
+                                try SMAppService.mainApp.register()
+                            } else {
+                                try SMAppService.mainApp.unregister()
+                            }
+                        } catch {
+                            // Revert toggle if the operation failed
+                            autoLaunch = !newValue
+                            NSLog("cmdX: Failed to update Login Item: \(error.localizedDescription)")
+                        }
+                    } else {
+                        setLaunchAtLogin(enabled: newValue)
+                    }
+                }
+                .help("Start cmdX when you log in to your Mac.")
+            }
+
+            HStack {
+                Spacer()
+                Button(role: .destructive) {
+                    NSApp.terminate(nil)
+                } label: {
+                    Text("Quit")
+                }
+                .buttonStyle(.bordered)
+            }
+
+            Spacer()
         }
-        .padding()
+    .padding(24)
+    .frame(width: 520, height: 260)
+    // Use the system window background so text and controls pick appropriate colors in light/dark mode
+    .background(Color(nsColor: .windowBackgroundColor))
+        .onAppear {
+            // Initialize autostart toggle
+            if #available(macOS 13.0, *) {
+                autoLaunch = (SMAppService.mainApp.status == .enabled)
+            } else {
+                autoLaunch = isLoginItemInstalled()
+            }
+        }
+    }
+
+    // MARK: - Actions
+    private func openAccessibilitySettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    // MARK: - Launch at Login via LaunchAgent
+    private var bundleIdentifier: String {
+        Bundle.main.bundleIdentifier ?? "com.yourcompany.commandX"
+    }
+
+    private func launchAgentPlistPath() -> URL {
+        let fm = FileManager.default
+        let agents = fm.homeDirectoryForCurrentUser.appendingPathComponent("Library/LaunchAgents")
+        try? fm.createDirectory(at: agents, withIntermediateDirectories: true, attributes: nil)
+        return agents.appendingPathComponent("\(bundleIdentifier).loginitem.plist")
+    }
+
+    private func isLoginItemInstalled() -> Bool {
+        let path = launchAgentPlistPath().path
+        return FileManager.default.fileExists(atPath: path)
+    }
+
+    private func setLaunchAtLogin(enabled: Bool) {
+        let fm = FileManager.default
+        let plistURL = launchAgentPlistPath()
+        if enabled {
+            let executable = (Bundle.main.infoDictionary?["CFBundleExecutable"] as? String) ?? "commandX"
+            let exePath = Bundle.main.bundlePath + "/Contents/MacOS/" + executable
+            let dict: [String: Any] = [
+                "Label": bundleIdentifier,
+                "ProgramArguments": [exePath],
+                "RunAtLoad": true
+            ]
+            if let data = try? PropertyListSerialization.data(fromPropertyList: dict, format: .xml, options: 0) {
+                try? data.write(to: plistURL)
+            }
+        } else {
+            try? fm.removeItem(at: plistURL)
+        }
     }
 }
 
-#Preview {
-    ContentView()
+struct ContentView_Previews: PreviewProvider {
+    static var previews: some View {
+        ContentView()
+            .environmentObject(KeyInterceptor.shared)
+            .frame(width: 520, height: 260)
+    }
 }
+
