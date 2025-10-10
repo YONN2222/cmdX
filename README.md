@@ -15,6 +15,14 @@ Works perfectly on:
 - 🧱 Lightweight, no background bloat  
 - 🎯 Compatible with macOS Big Sur and later  
 
+### 🧑‍💻 Usage
+
+1. Open Finder  
+2. Select a file  
+3. Press **Cmd + X** to cut  
+4. Navigate to a new folder  
+5. Press **Cmd + V** to paste (move)  
+
 ### 🧰 Build It Yourself
 
 1. **Clone the repository**
@@ -32,14 +40,6 @@ Works perfectly on:
    ```bash
    xcodebuild -scheme cmdX -configuration Release
    ```
-
-### 🧑‍💻 Usage
-
-1. Open Finder  
-2. Select a file  
-3. Press **Cmd + X** to cut  
-4. Navigate to a new folder  
-5. Press **Cmd + V** to paste (move)  
 
 ### 🧠 Note
 
