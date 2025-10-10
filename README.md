@@ -1,4 +1,6 @@
 # ✂️ cmdX
+![GitHub Repo stars](https://img.shields.io/github/stars/YONN2222/cmdX) ![GitHub Downloads (all assets, latest release)](https://img.shields.io/github/downloads/YONN2222/cmdX/latest/total?label=Downloads&color=%236495ED)
+
 
 ### 🧩 What is cmdX?
 
@@ -44,6 +46,10 @@ Works perfectly on:
 ### 🧠 Note
 
 You need to grant **Accessibility permissions** to cmdX under **System Settings → Privacy & Security → Accessibility**.
+
+### ⭐ Star it
+
+If you like this projekt, feel free to star it!
 
 ### ❤️ Credits
 
