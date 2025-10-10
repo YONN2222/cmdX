@@ -1,7 +1,5 @@
 # ✂️ cmdX
-![GitHub Repo stars](https://img.shields.io/github/stars/YONN2222/cmdX) ![GitHub Downloads (all assets, latest release)](https://img.shields.io/github/downloads/YONN2222/cmdX/latest/total?label=Downloads&color=%236495ED)
-
-
+![GitHub Repo stars](https://img.shields.io/github/stars/YONN2222/cmdX) ![GitHub Downloads (all assets, latest release)](https://img.shields.io/github/downloads/YONN2222/cmdX/total?label=Downloads&color=%236495ED)
 ### 🧩 What is cmdX?
 
 **cmdX** is a small macOS utility that adds the missing **Cmd + X** file-cut function to Finder — just like you know it from Windows. It makes moving files smoother, smarter, and faster.
