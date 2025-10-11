@@ -5,6 +5,7 @@
 
 import SwiftUI
 import AppKit
+import ServiceManagement
 
 @main
 struct commandXApp: App {
@@ -62,6 +63,27 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     popover?.delegate = self
         popover?.contentViewController = NSHostingController(rootView: ContentView().environmentObject(interceptor))
 
+        // Attempt to enable auto-launch on first run (user can disable later in the app)
+        let defaults = UserDefaults.standard
+        let configuredKey = "cmdx.autostart.configured"
+        if !defaults.bool(forKey: configuredKey) {
+            // Try to enable by default
+            if #available(macOS 13.0, *) {
+                do {
+                    try SMAppService.mainApp.register()
+                    defaults.set(true, forKey: "cmdx.autostart.enabled")
+                } catch {
+                    // Registration may fail if not signed/entitled; fall back to LaunchAgent
+                    setLaunchAtLogin(enabled: true)
+                    defaults.set(true, forKey: "cmdx.autostart.enabled")
+                }
+            } else {
+                setLaunchAtLogin(enabled: true)
+                defaults.set(true, forKey: "cmdx.autostart.enabled")
+            }
+            defaults.set(true, forKey: configuredKey)
+        }
+
     }
     
     @objc func togglePopover() {
@@ -113,6 +135,37 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     // NSPopoverDelegate
     func popoverDidClose(_ notification: Notification) {
         stopEventMonitoring()
+    }
+
+    // MARK: - Launch at Login via LaunchAgent (fallback for older macOS or unsigned app)
+    private var bundleIdentifier: String {
+        Bundle.main.bundleIdentifier ?? "com.yourcompany.commandX"
+    }
+
+    private func launchAgentPlistPath() -> URL {
+        let fm = FileManager.default
+        let agents = fm.homeDirectoryForCurrentUser.appendingPathComponent("Library/LaunchAgents")
+        try? fm.createDirectory(at: agents, withIntermediateDirectories: true, attributes: nil)
+        return agents.appendingPathComponent("\(bundleIdentifier).loginitem.plist")
+    }
+
+    private func setLaunchAtLogin(enabled: Bool) {
+        let fm = FileManager.default
+        let plistURL = launchAgentPlistPath()
+        if enabled {
+            let executable = (Bundle.main.infoDictionary?["CFBundleExecutable"] as? String) ?? "commandX"
+            let exePath = Bundle.main.bundlePath + "/Contents/MacOS/" + executable
+            let dict: [String: Any] = [
+                "Label": bundleIdentifier,
+                "ProgramArguments": [exePath],
+                "RunAtLoad": true
+            ]
+            if let data = try? PropertyListSerialization.data(fromPropertyList: dict, format: .xml, options: 0) {
+                try? data.write(to: plistURL)
+            }
+        } else {
+            try? fm.removeItem(at: plistURL)
+        }
     }
 
 }
