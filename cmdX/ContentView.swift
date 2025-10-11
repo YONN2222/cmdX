@@ -57,6 +57,7 @@ struct ContentView: View {
                             } else {
                                 try SMAppService.mainApp.unregister()
                             }
+                            UserDefaults.standard.set(newValue, forKey: "cmdx.autostart.enabled")
                         } catch {
                             // Revert toggle if the operation failed
                             autoLaunch = !newValue
@@ -64,6 +65,7 @@ struct ContentView: View {
                         }
                     } else {
                         setLaunchAtLogin(enabled: newValue)
+                        UserDefaults.standard.set(newValue, forKey: "cmdx.autostart.enabled")
                     }
                 }
                 .help("Start cmdX when you log in to your Mac.")
@@ -88,9 +90,18 @@ struct ContentView: View {
         .onAppear {
             // Initialize autostart toggle
             if #available(macOS 13.0, *) {
-                autoLaunch = (SMAppService.mainApp.status == .enabled)
+                // Prefer stored preference if available
+                if UserDefaults.standard.object(forKey: "cmdx.autostart.enabled") != nil {
+                    autoLaunch = UserDefaults.standard.bool(forKey: "cmdx.autostart.enabled")
+                } else {
+                    autoLaunch = (SMAppService.mainApp.status == .enabled)
+                }
             } else {
-                autoLaunch = isLoginItemInstalled()
+                if UserDefaults.standard.object(forKey: "cmdx.autostart.enabled") != nil {
+                    autoLaunch = UserDefaults.standard.bool(forKey: "cmdx.autostart.enabled")
+                } else {
+                    autoLaunch = isLoginItemInstalled()
+                }
             }
         }
     }
