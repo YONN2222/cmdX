@@ -11,7 +11,7 @@ final class KeyInterceptor: ObservableObject {
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
 
-    private init() {}
+    init() {}
 
     func start() {
         guard eventTap == nil else { return }
