@@ -1,6 +1,8 @@
 //
 //  ContentView.swift
-//  commandX
+//  cmdX
+//
+//  Created by Y-n on 2024/07/14.
 //
 
 import SwiftUI
@@ -8,10 +10,13 @@ import AppKit
 import ServiceManagement
 
 struct ContentView: View {
-    @EnvironmentObject var interceptor: KeyInterceptor
+    @EnvironmentObject var keyInterceptor: KeyInterceptor
+    @EnvironmentObject var updateChecker: UpdateChecker
 
     // MARK: - State
     @State private var autoLaunch: Bool = false
+    @State private var showingAlert = false
+    @State private var alertMessage = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -71,22 +76,23 @@ struct ContentView: View {
                 .help("Start cmdX when you log in to your Mac.")
             }
 
-            HStack {
-                Spacer()
-                Button(role: .destructive) {
-                    NSApp.terminate(nil)
-                } label: {
-                    Text("Quit")
-                }
-                .buttonStyle(.bordered)
-            }
+            Divider()
 
-            Spacer()
+            HStack(spacing: 12) {
+                Button("Search for Updates") {
+                    updateChecker.checkForUpdates(manualCheck: true)
+                }
+                
+                Button("Quit") {
+                    NSApplication.shared.terminate(nil)
+                }
+                .keyboardShortcut("q")
+            }
         }
-    .padding(24)
-    .frame(width: 520, height: 260)
-    // Use the system window background so text and controls pick appropriate colors in light/dark mode
-    .background(Color(nsColor: .windowBackgroundColor))
+        .padding()
+        .frame(width: 520, height: 280)
+        // Use the system window background so text and controls pick appropriate colors in light/dark mode
+        .background(Color(nsColor: .windowBackgroundColor))
         .onAppear {
             // Initialize autostart toggle
             if #available(macOS 13.0, *) {
@@ -154,7 +160,8 @@ struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
             .environmentObject(KeyInterceptor.shared)
-            .frame(width: 520, height: 260)
+            .environmentObject(UpdateChecker())
+            .frame(width: 520, height: 280)
     }
 }
 

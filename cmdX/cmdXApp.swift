@@ -6,15 +6,82 @@
 import SwiftUI
 import AppKit
 import ServiceManagement
+import UserNotifications
 
 @main
-struct commandXApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    
+struct cmdXApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegateWrapper.self) var appDelegate
+    @StateObject private var keyInterceptor = KeyInterceptor()
+    @StateObject private var updateChecker = UpdateChecker()
+    @State private var isShowingOnboarding = !UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
+
+    init() {
+        // Setup must happen here, not in onAppear
+        setupKeyInterceptor()
+        setupUpdateChecker()
+    }
+
     var body: some Scene {
-        Settings {
-            EmptyView()
+        MenuBarExtra {
+            ContentView()
+                .environmentObject(keyInterceptor)
+                .environmentObject(updateChecker)
+                .onAppear {
+                    // Keep reference to updateChecker in AppDelegate
+                    self.appDelegate.updateChecker = self.updateChecker
+                }
+        } label: {
+            HStack {
+                Image(systemName: "command")
+                if updateChecker.isUpdateAvailable {
+                    Image(systemName: "circle.fill")
+                        .foregroundColor(.red)
+                        .font(.system(size: 8))
+                }
+            }
         }
+        .menuBarExtraStyle(.window)
+    }
+    
+    private func setupKeyInterceptor() {
+        // This needs to run after the StateObject is initialized
+        DispatchQueue.main.async {
+            self.keyInterceptor.start()
+        }
+    }
+    
+    private func setupUpdateChecker() {
+        // Request notification permissions
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+            if granted {
+                print("DEBUG: Notification permission granted")
+            } else {
+                print("DEBUG: Notification permission denied: \(error?.localizedDescription ?? "unknown")")
+            }
+        }
+        
+        // Initial check with a small delay to ensure everything is set up
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            print("DEBUG: Starting initial update check...")
+            self.updateChecker.checkForUpdates()
+        }
+        
+        // Schedule hourly checks
+        DispatchQueue.main.async {
+            Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { _ in
+                print("DEBUG: Hourly update check...")
+                self.updateChecker.checkForUpdates()
+            }
+        }
+    }
+}
+
+class AppDelegateWrapper: NSObject, NSApplicationDelegate {
+    var updateChecker: UpdateChecker?
+    
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        // Hide from Dock - App should only appear in menu bar
+        NSApp.setActivationPolicy(.accessory)
     }
 }
 
