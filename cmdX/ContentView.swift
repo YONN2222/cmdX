@@ -15,8 +15,6 @@ struct ContentView: View {
 
     // MARK: - State
     @State private var autoLaunch: Bool = false
-    @State private var showingAlert = false
-    @State private var alertMessage = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
