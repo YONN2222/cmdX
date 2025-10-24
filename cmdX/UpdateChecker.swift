@@ -52,7 +52,6 @@ class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterDelegat
                         print("DEBUG: Update is available! Setting flag.")
                         
                         if manualCheck {
-                            // Show alert dialog for manual checks
                             self.showUpdateAlert()
                         } else {
                             // Automatic check: send notification if enabled, otherwise show popup
@@ -112,8 +111,6 @@ class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterDelegat
     content.body = "Open the app in the menu bar to install the update."
         content.sound = .default
         content.categoryIdentifier = "UPDATE_CATEGORY"
-        // We keep the URL in case it's needed elsewhere, but clicking the notification will
-        // now activate the app (bring the menu-bar app forward) instead of opening the browser.
         content.userInfo = ["url": latestVersionURL?.absoluteString ?? ""]
         
         let request = UNNotificationRequest(identifier: "cmdx-update-notification", content: content, trigger: nil)
@@ -128,11 +125,8 @@ class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterDelegat
     
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
         print("DEBUG: Notification clicked!")
-        // Instead of opening the release page in the browser, bring the app forward and
-        // show the update alert so the user can interact with the menu-bar app.
         DispatchQueue.main.async {
             NSApp.activate(ignoringOtherApps: true)
-            // Show the alert which offers to open the download page (or the user can open the menu-bar UI).
             self.showUpdateAlert()
         }
         
@@ -141,7 +135,6 @@ class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterDelegat
     
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         print("DEBUG: Will present notification")
-        // Show notification even when app is in foreground
         completionHandler([.banner, .sound])
     }
 
