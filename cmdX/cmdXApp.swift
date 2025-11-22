@@ -206,7 +206,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     // MARK: - Launch at Login via LaunchAgent (fallback for older macOS or unsigned app)
     private var bundleIdentifier: String {
-        Bundle.main.bundleIdentifier ?? "com.yourcompany.commandX"
+        Bundle.main.bundleIdentifier ?? "com.yonn2222.cmdX"
     }
 
     private func launchAgentPlistPath() -> URL {
