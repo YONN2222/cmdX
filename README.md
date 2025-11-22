@@ -31,7 +31,7 @@ Grab the latest build directly from the releases page:
 
 > https://github.com/YONN2222/cmdX/releases
 
-### Via Homebrew  
+**Via Homebrew**
 Thanks to [thedavidwenk](https://github.com/thedavidwenk), you can also install cmdX through Homebrew:
 
 ```sh
