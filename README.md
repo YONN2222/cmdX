@@ -19,7 +19,30 @@ Works perfectly on:
 - 🪄 Adds real **Cmd + X / Cmd + V** support for files  
 - ⚡ Works natively inside Finder  
 - 🧱 Lightweight, no background bloat  
-- 🎯 Compatible with macOS Big Sur and later  
+- 🎯 Compatible with macOS Big Sur and later
+
+
+### ✨ Install
+
+You can install **cmdX** in two ways:
+
+**From GitHub Releases**
+Grab the latest build directly from the releases page:
+
+> https://github.com/YONN2222/cmdX/releases
+
+### Via Homebrew  
+Thanks to [thedavidwenk](https://github.com/thedavidwenk), you can also install cmdX through Homebrew:
+
+```sh
+brew tap thedavidwenk/cmdx
+brew install cmdx
+```
+
+Repository:  
+> https://github.com/thedavidwenk/homebrew-cmdx
+
+
 
 ### 🧑‍💻 Usage
 
