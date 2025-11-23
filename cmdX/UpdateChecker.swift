@@ -11,7 +11,6 @@ class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterDelegat
         super.init()
         UNUserNotificationCenter.current().delegate = self
         
-        // Check notification authorization status
         UNUserNotificationCenter.current().getNotificationSettings { settings in
             self.notificationsEnabled = (settings.authorizationStatus == .authorized)
             print("DEBUG: Notifications enabled: \(self.notificationsEnabled)")
@@ -19,7 +18,6 @@ class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterDelegat
     }
 
     func checkForUpdates(manualCheck: Bool = false) {
-        // Update notification status before checking
         UNUserNotificationCenter.current().getNotificationSettings { settings in
             self.notificationsEnabled = (settings.authorizationStatus == .authorized)
             print("DEBUG: Notification status check - enabled: \(self.notificationsEnabled)")
@@ -54,7 +52,6 @@ class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterDelegat
                         if manualCheck {
                             self.showUpdateAlert()
                         } else {
-                            // Automatic check: send notification if enabled, otherwise show popup
                             if self.notificationsEnabled {
                                 print("DEBUG: Sending notification (notifications enabled)")
                                 self.sendNotification()
