@@ -16,7 +16,6 @@ struct cmdXApp: App {
     @State private var isShowingOnboarding = !UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
 
     init() {
-        // Setup must happen here, not in onAppear
         setupKeyInterceptor()
         setupUpdateChecker()
     }
@@ -27,7 +26,6 @@ struct cmdXApp: App {
                 .environmentObject(keyInterceptor)
                 .environmentObject(updateChecker)
                 .onAppear {
-                    // Keep reference to updateChecker in AppDelegate
                     self.appDelegate.updateChecker = self.updateChecker
                 }
         } label: {
@@ -44,14 +42,12 @@ struct cmdXApp: App {
     }
     
     private func setupKeyInterceptor() {
-        // This needs to run after the StateObject is initialized
         DispatchQueue.main.async {
             self.keyInterceptor.start()
         }
     }
     
     private func setupUpdateChecker() {
-        // Request notification permissions
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
             if granted {
                 print("DEBUG: Notification permission granted")
@@ -60,13 +56,11 @@ struct cmdXApp: App {
             }
         }
         
-        // Initial check with a small delay to ensure everything is set up
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
             print("DEBUG: Starting initial update check...")
             self.updateChecker.checkForUpdates()
         }
         
-        // Schedule hourly checks
         DispatchQueue.main.async {
             Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { _ in
                 print("DEBUG: Hourly update check...")
@@ -80,7 +74,6 @@ class AppDelegateWrapper: NSObject, NSApplicationDelegate {
     var updateChecker: UpdateChecker?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Hide from Dock - App should only appear in menu bar
         NSApp.setActivationPolicy(.accessory)
     }
 }
@@ -93,7 +86,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var localEventMonitor: Any?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // If another instance of this app is already running, activate it and exit.
         if let bundleID = Bundle.main.bundleIdentifier {
             let ownPID = ProcessInfo.processInfo.processIdentifier
             let others = NSWorkspace.shared.runningApplications.filter { app in
@@ -105,13 +97,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             }
         }
         
-        // Hide from Dock
         NSApp.setActivationPolicy(.accessory)
-        
-        // Start the global event tap
         interceptor.start()
         
-        // Create status bar item
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         
         if let button = statusItem?.button {
@@ -123,24 +111,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             button.target = self
         }
         
-        // Create popover
         popover = NSPopover()
         popover?.contentSize = NSSize(width: 520, height: 280)
         popover?.behavior = .transient
     popover?.delegate = self
         popover?.contentViewController = NSHostingController(rootView: ContentView().environmentObject(interceptor))
 
-        // Attempt to enable auto-launch on first run (user can disable later in the app)
         let defaults = UserDefaults.standard
         let configuredKey = "cmdx.autostart.configured"
         if !defaults.bool(forKey: configuredKey) {
-            // Try to enable by default
             if #available(macOS 13.0, *) {
                 do {
                     try SMAppService.mainApp.register()
                     defaults.set(true, forKey: "cmdx.autostart.enabled")
                 } catch {
-                    // Registration may fail if not signed/entitled; fall back to LaunchAgent
                     setLaunchAtLogin(enabled: true)
                     defaults.set(true, forKey: "cmdx.autostart.enabled")
                 }
@@ -166,11 +150,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
     }
 
-    // MARK: - Event monitoring to handle clicks outside the popover reliably
     private func startEventMonitoring() {
         stopEventMonitoring()
 
-        // Global monitor (for clicks outside the app)
         globalEventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             guard let self = self, let popover = self.popover, popover.isShown else { return }
             DispatchQueue.main.async {
@@ -178,7 +160,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             }
         }
 
-        // Local monitor (for clicks inside the app but outside the popover)
         localEventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
             guard let self = self, let popover = self.popover, popover.isShown else { return event }
             if let win = event.window, win != popover.contentViewController?.view.window {
@@ -199,12 +180,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
     }
 
-    // NSPopoverDelegate
     func popoverDidClose(_ notification: Notification) {
         stopEventMonitoring()
     }
 
-    // MARK: - Launch at Login via LaunchAgent (fallback for older macOS or unsigned app)
     private var bundleIdentifier: String {
         Bundle.main.bundleIdentifier ?? "com.yonn2222.cmdX"
     }
