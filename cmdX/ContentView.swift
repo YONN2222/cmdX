@@ -2,8 +2,6 @@
 //  ContentView.swift
 //  cmdX
 //
-//  Created by Y-n on 2024/07/14.
-//
 
 import SwiftUI
 import AppKit
@@ -13,12 +11,10 @@ struct ContentView: View {
     @EnvironmentObject var keyInterceptor: KeyInterceptor
     @EnvironmentObject var updateChecker: UpdateChecker
 
-    // MARK: - State
     @State private var autoLaunch: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            // Header: App icon + name
             HStack(alignment: .center, spacing: 12) {
                 Image(nsImage: NSApplication.shared.applicationIconImage)
                     .resizable()
@@ -33,13 +29,11 @@ struct ContentView: View {
                     .accessibilityLabel("App name: cmdX")
             }
 
-            // Description
             Text("Cut and move files in Finder with familiar shortcuts: press Command-X to mark files, then Command-V to move them.")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            // Controls
             VStack(alignment: .leading, spacing: 12) {
                 Button(action: openAccessibilitySettings) {
                     Text("Open Accessibility Settings")
@@ -62,7 +56,6 @@ struct ContentView: View {
                             }
                             UserDefaults.standard.set(newValue, forKey: "cmdx.autostart.enabled")
                         } catch {
-                            // Revert toggle if the operation failed
                             autoLaunch = !newValue
                             NSLog("cmdX: Failed to update Login Item: \(error.localizedDescription)")
                         }
@@ -89,12 +82,9 @@ struct ContentView: View {
         }
         .padding()
         .frame(width: 520, height: 280)
-        // Use the system window background so text and controls pick appropriate colors in light/dark mode
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear {
-            // Initialize autostart toggle
             if #available(macOS 13.0, *) {
-                // Prefer stored preference if available
                 if UserDefaults.standard.object(forKey: "cmdx.autostart.enabled") != nil {
                     autoLaunch = UserDefaults.standard.bool(forKey: "cmdx.autostart.enabled")
                 } else {
@@ -110,14 +100,13 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Actions
+
     private func openAccessibilitySettings() {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             NSWorkspace.shared.open(url)
         }
     }
 
-    // MARK: - Launch at Login via LaunchAgent
     private var bundleIdentifier: String {
         Bundle.main.bundleIdentifier ?? "com.yourcompany.commandX"
     }
