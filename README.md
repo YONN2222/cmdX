@@ -16,7 +16,7 @@ Works perfectly on:
 
 ### ⚙️ Features
 
-- 🪄 Adds real **Cmd + X / Cmd + V** support for files  
+- 🪄 Adds **Cmd + X / Cmd + V** support for files  
 - ⚡ Works natively inside Finder  
 - 🧱 Lightweight, no background bloat  
 - 🎯 Compatible with macOS Big Sur and later
