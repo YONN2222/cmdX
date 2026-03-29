@@ -1,6 +1,6 @@
 # cmdX
 [![GitHub Repo stars](https://img.shields.io/github/stars/YONN2222/cmdX)](https://github.com/YONN2222/cmdX)
-[![GitHub Downloads (all assets, latest release)](https://img.shields.io/github/downloads/YONN2222/cmdX/total?label=Downloads&color=%236495ED)](https://github.com/YONN2222/cmdX/releases)
+[![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/YONN2222/cmdX/total?label=Downloads&color=%236495ED)](https://github.com/YONN2222/cmdX/releases)
 [![GitHub Issues](https://img.shields.io/github/issues/YONN2222/cmdX?logoColor=FF0000&label=Issues&color=FF0000)](https://github.com/YONN2222/cmdX/issues)
 [![GitHub Pull Requests](https://img.shields.io/github/issues-pr/YONN2222/cmdX?logoColor=007F00&label=Pull%20Requests&color=007F00)](https://github.com/YONN2222/cmdX/pulls)
 
