@@ -1,6 +1,6 @@
 //
-//  commandXApp.swift
-//  commandX
+//  cmdXApp.swift
+//  cmdX
 //
 
 import SwiftUI
