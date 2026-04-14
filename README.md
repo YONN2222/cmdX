@@ -6,7 +6,7 @@
 
 ### What is cmdX?
 
-**cmdX** is a small macOS utility that adds the missing **Cmd + X** file-cut function to Finder, just like you know it from Windows. It makes moving files smoother, smarter, and faster.
+**cmdX** is a small macOS utility that adds the missing **Cmd + X** file-cut shortcut to Finder, just like you know it from Windows. It makes moving files smoother, smarter, and faster.
 
 Works on both Apple Silicon (M1 and later) and Intel-based Macs.
 
