@@ -1,9 +1,11 @@
-name: Update Homebrew cask
+name: Update Homebrew cask (manual resync)
 
 on:
-  release:
-    types: [published, edited]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to sync the cask to (defaults to the latest release)"
+        required: false
 
 permissions:
   contents: write
@@ -20,9 +22,9 @@ jobs:
         id: release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          EVENT_TAG: ${{ github.event.release.tag_name }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
         run: |
-          TAG="$EVENT_TAG"
+          TAG="$INPUT_TAG"
           if [ -z "$TAG" ]; then
             TAG=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)
           fi
@@ -34,7 +36,7 @@ jobs:
       - name: Download release asset and compute checksum
         id: checksum
         run: |
-          curl -sL -o cmdX.dmg "${{ steps.release.outputs.asset_url }}"
+          curl -sfL -o cmdX.dmg "${{ steps.release.outputs.asset_url }}"
           SHA=$(shasum -a 256 cmdX.dmg | cut -d ' ' -f1)
           echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
 

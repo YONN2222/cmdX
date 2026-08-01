@@ -88,3 +88,27 @@ jobs:
           else
             gh release create "$TAG" "$DMG" --repo "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes
           fi
+
+      - name: Update Homebrew cask
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          DMG: ${{ steps.package.outputs.dmg_name }}
+        run: |
+          SHA=$(shasum -a 256 "$DMG" | cut -d ' ' -f1)
+
+          git fetch origin main
+          git checkout main
+
+          sed -i '' "s/version \".*\"/version \"${VERSION}\"/" Casks/cmdx.rb
+          sed -i '' "s/sha256 \".*\"/sha256 \"${SHA}\"/" Casks/cmdx.rb
+
+          if git diff --quiet Casks/cmdx.rb; then
+            echo "Cask already up to date"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/cmdx.rb
+          git commit -m "chore: bump Homebrew cask to ${VERSION}"
+          git push origin HEAD:main
