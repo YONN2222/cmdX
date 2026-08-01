@@ -34,7 +34,6 @@ cmdX lives in the menu bar, listens only for shortcuts while Finder is frontmost
 - **Cmd + X / Cmd + V for files**: cut in Finder, paste to move, exactly like you'd expect from any other app.
 - **Native integration**: works directly inside Finder, no extra windows or extensions to manage.
 - **Lightweight**: runs quietly in the menu bar without slowing down your Mac.
-- **Menu bar icon can be hidden**: reopen the app (e.g. via Spotlight) to bring it back if you tuck it away.
 - **Private by design**: no tracking, no analytics, no data collection. Your files never leave your Mac.
 - **Universal binary**: native performance on both Apple Silicon and Intel Macs.
 
