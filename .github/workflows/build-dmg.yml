@@ -31,14 +31,24 @@ jobs:
 
       - name: Build app (unsigned, ad-hoc)
         run: |
-          xcodebuild -project cmdX.xcodeproj \
-            -scheme cmdX \
-            -configuration Release \
-            -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            build
+          for attempt in 1 2 3; do
+            echo "Build attempt $attempt"
+            if xcodebuild -project cmdX.xcodeproj \
+              -scheme cmdX \
+              -configuration Release \
+              -derivedDataPath build \
+              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGN_IDENTITY="" \
+              build; then
+              exit 0
+            fi
+            echo "Build failed, likely a flaky actool/AssetCatalogAgent crash — cleaning up and retrying"
+            killall -9 XCBBuildService actool AssetCatalogAgent ibtoold 2>/dev/null || true
+            rm -rf build
+            sleep 5
+          done
+          exit 1
 
       - name: Ad-hoc sign app
         run: |
