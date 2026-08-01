@@ -14,11 +14,7 @@ struct cmdXApp: App {
     @StateObject private var keyInterceptor = KeyInterceptor()
     @StateObject private var updateChecker = UpdateChecker()
     @State private var isShowingOnboarding = !UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
-
-    init() {
-        setupKeyInterceptor()
-        setupUpdateChecker()
-    }
+    @State private var didLaunch = false
 
     var body: some Scene {
         MenuBarExtra {
@@ -37,16 +33,16 @@ struct cmdXApp: App {
                         .font(.system(size: 8))
                 }
             }
+            .onAppear {
+                guard !didLaunch else { return }
+                didLaunch = true
+                keyInterceptor.start()
+                setupUpdateChecker()
+            }
         }
         .menuBarExtraStyle(.window)
     }
-    
-    private func setupKeyInterceptor() {
-        DispatchQueue.main.async {
-            self.keyInterceptor.start()
-        }
-    }
-    
+
     private func setupUpdateChecker() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
             if granted {
@@ -199,7 +195,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         let fm = FileManager.default
         let plistURL = launchAgentPlistPath()
         if enabled {
-            let executable = (Bundle.main.infoDictionary?["CFBundleExecutable"] as? String) ?? "commandX"
+            let executable = (Bundle.main.infoDictionary?["CFBundleExecutable"] as? String) ?? "cmdX"
             let exePath = Bundle.main.bundlePath + "/Contents/MacOS/" + executable
             let dict: [String: Any] = [
                 "Label": bundleIdentifier,

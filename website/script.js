@@ -4,9 +4,6 @@ if (yearElement) {
   yearElement.textContent = new Date().getFullYear();
 }
 
-// Initialize Lucide icons
-lucide.createIcons();
-
 // Smooth scroll for navigation links
 document.querySelectorAll('a[href^="#"]').forEach(anchor => {
   anchor.addEventListener('click', function (e) {

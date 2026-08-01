@@ -30,7 +30,7 @@ final class KeyInterceptor: ObservableObject {
                                      userInfo: nil)
 
         guard let eventTap = eventTap else {
-            NSLog("commandX: failed to create event tap — make sure Input Monitoring is allowed")
+            NSLog("cmdX: failed to create event tap - make sure Input Monitoring is allowed")
             return
         }
 
@@ -39,7 +39,7 @@ final class KeyInterceptor: ObservableObject {
             CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
             CGEvent.tapEnable(tap: eventTap, enable: true)
             isRunning = true
-            NSLog("commandX: event tap started")
+            NSLog("cmdX: event tap started")
         }
     }
 
@@ -53,7 +53,7 @@ final class KeyInterceptor: ObservableObject {
         runLoopSource = nil
         eventTap = nil
         isRunning = false
-        NSLog("commandX: event tap stopped")
+        NSLog("cmdX: event tap stopped")
     }
 
     private static func handleEvent(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {

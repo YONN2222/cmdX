@@ -108,7 +108,7 @@ struct ContentView: View {
     }
 
     private var bundleIdentifier: String {
-        Bundle.main.bundleIdentifier ?? "com.yourcompany.commandX"
+        Bundle.main.bundleIdentifier ?? "com.yonn2222.cmdX"
     }
 
     private func launchAgentPlistPath() -> URL {
@@ -127,7 +127,7 @@ struct ContentView: View {
         let fm = FileManager.default
         let plistURL = launchAgentPlistPath()
         if enabled {
-            let executable = (Bundle.main.infoDictionary?["CFBundleExecutable"] as? String) ?? "commandX"
+            let executable = (Bundle.main.infoDictionary?["CFBundleExecutable"] as? String) ?? "cmdX"
             let exePath = Bundle.main.bundlePath + "/Contents/MacOS/" + executable
             let dict: [String: Any] = [
                 "Label": bundleIdentifier,

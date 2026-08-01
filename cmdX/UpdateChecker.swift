@@ -164,7 +164,7 @@ class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterDelegat
     }
 }
 
-struct GitHubRelease: Codable, Sendable {
+nonisolated struct GitHubRelease: Codable, Sendable {
     let tagName: String
     let htmlURL: String
     
