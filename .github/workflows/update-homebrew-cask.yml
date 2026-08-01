@@ -13,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Determine release version and asset
         id: release
@@ -53,4 +55,4 @@ jobs:
           fi
           git add Casks/cmdx.rb
           git commit -m "chore: bump Homebrew cask to ${{ steps.release.outputs.version }}"
-          git push
+          git push origin HEAD:main
