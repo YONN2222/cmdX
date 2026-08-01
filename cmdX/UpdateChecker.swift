@@ -7,10 +7,20 @@ class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterDelegat
     private var latestVersionURL: URL?
     private var notificationsEnabled = false
 
+    static let checkForUpdatesEnabledKey = "cmdx.updateCheck.enabled"
+    private static let lastNotifiedVersionKey = "cmdx.updateCheck.lastNotifiedVersion"
+
+    private var isAutomaticCheckingEnabled: Bool {
+        if UserDefaults.standard.object(forKey: Self.checkForUpdatesEnabledKey) == nil {
+            return true
+        }
+        return UserDefaults.standard.bool(forKey: Self.checkForUpdatesEnabledKey)
+    }
+
     override init() {
         super.init()
         UNUserNotificationCenter.current().delegate = self
-        
+
         UNUserNotificationCenter.current().getNotificationSettings { settings in
             self.notificationsEnabled = (settings.authorizationStatus == .authorized)
             print("DEBUG: Notifications enabled: \(self.notificationsEnabled)")
@@ -18,11 +28,16 @@ class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterDelegat
     }
 
     func checkForUpdates(manualCheck: Bool = false) {
+        guard manualCheck || isAutomaticCheckingEnabled else {
+            print("DEBUG: Skipping automatic update check (disabled by user)")
+            return
+        }
+
         UNUserNotificationCenter.current().getNotificationSettings { settings in
             self.notificationsEnabled = (settings.authorizationStatus == .authorized)
             print("DEBUG: Notification status check - enabled: \(self.notificationsEnabled)")
         }
-        
+
         let url = URL(string: "https://api.github.com/repos/YONN2222/cmdX/releases/latest")!
         
         URLSession.shared.dataTask(with: url) { data, response, error in
@@ -48,10 +63,15 @@ class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterDelegat
                     DispatchQueue.main.async {
                         self.isUpdateAvailable = true
                         print("DEBUG: Update is available! Setting flag.")
-                        
+
+                        let alreadyNotifiedThisVersion = UserDefaults.standard.string(forKey: Self.lastNotifiedVersionKey) == latestVersion
+
                         if manualCheck {
                             self.showUpdateAlert()
+                        } else if alreadyNotifiedThisVersion {
+                            print("DEBUG: Already notified about \(latestVersion), skipping repeat alert")
                         } else {
+                            UserDefaults.standard.set(latestVersion, forKey: Self.lastNotifiedVersionKey)
                             if self.notificationsEnabled {
                                 print("DEBUG: Sending notification (notifications enabled)")
                                 self.sendNotification()

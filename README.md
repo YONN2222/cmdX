@@ -45,17 +45,18 @@ Grab the latest build directly from the releases page:
 
 > https://github.com/YONN2222/cmdX/releases
 
-**Via Homebrew**
+**Via Homebrew (official)**
 
-Thanks to [thedavidwenk](https://github.com/thedavidwenk), you can also install cmdX through Homebrew:
+This repository is the official Homebrew tap. It's kept in sync with GitHub Releases automatically, so `brew upgrade` always finds the latest version:
 
 ```sh
-brew tap thedavidwenk/cmdx
+brew tap YONN2222/cmdx https://github.com/YONN2222/cmdX
 brew install cmdx
 ```
 
-Repository:
-> https://github.com/thedavidwenk/homebrew-cmdx
+**Via Homebrew (community tap)**
+
+There's also a community-maintained tap by [thedavidwenk](https://github.com/thedavidwenk/homebrew-cmdx) — more info here. It may lag behind the latest release; use the official tap above for the newest version.
 
 ## 4. Usage
 

@@ -1,0 +1,56 @@
+name: Update Homebrew cask
+
+on:
+  release:
+    types: [published, edited]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-cask:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine release version and asset
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          TAG="$EVENT_TAG"
+          if [ -z "$TAG" ]; then
+            TAG=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)
+          fi
+          VERSION="${TAG#v}"
+          ASSET_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/cmdX-${VERSION}.dmg"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "asset_url=$ASSET_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Download release asset and compute checksum
+        id: checksum
+        run: |
+          curl -sL -o cmdX.dmg "${{ steps.release.outputs.asset_url }}"
+          SHA=$(shasum -a 256 cmdX.dmg | cut -d ' ' -f1)
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Update Casks/cmdx.rb
+        run: |
+          VERSION="${{ steps.release.outputs.version }}"
+          SHA="${{ steps.checksum.outputs.sha256 }}"
+          sed -i "s/version \".*\"/version \"${VERSION}\"/" Casks/cmdx.rb
+          sed -i "s/sha256 \".*\"/sha256 \"${SHA}\"/" Casks/cmdx.rb
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet Casks/cmdx.rb; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git add Casks/cmdx.rb
+          git commit -m "chore: bump Homebrew cask to ${{ steps.release.outputs.version }}"
+          git push

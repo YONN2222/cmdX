@@ -1,0 +1,85 @@
+name: Build and release dmg
+
+on:
+  push:
+    tags:
+      - "*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          VERSION="${REF_NAME#v}"
+          echo "tag=$REF_NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build app (unsigned, ad-hoc)
+        run: |
+          xcodebuild -project cmdX.xcodeproj \
+            -scheme cmdX \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Ad-hoc sign app
+        run: |
+          APP_PATH="build/Build/Products/Release/cmdX.app"
+          codesign --force --deep --sign - "$APP_PATH"
+
+      - name: Install create-dmg
+        run: brew install create-dmg
+
+      - name: Package dmg
+        id: package
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          APP_PATH="build/Build/Products/Release/cmdX.app"
+          DMG_NAME="cmdX-${VERSION}.dmg"
+          rm -f "$DMG_NAME"
+          create-dmg \
+            --volname "cmdX" \
+            --window-pos 200 120 \
+            --window-size 660 420 \
+            --icon-size 160 \
+            --icon "cmdX.app" 170 200 \
+            --hide-extension "cmdX.app" \
+            --app-drop-link 490 200 \
+            "$DMG_NAME" \
+            "$APP_PATH" || true
+          if [ ! -f "$DMG_NAME" ]; then
+            echo "create-dmg failed, falling back to plain hdiutil dmg" >&2
+            STAGE_DIR="dmg-stage"
+            rm -rf "$STAGE_DIR"
+            mkdir -p "$STAGE_DIR"
+            cp -R "$APP_PATH" "$STAGE_DIR/"
+            ln -s /Applications "$STAGE_DIR/Applications"
+            hdiutil create -volname "cmdX" -srcfolder "$STAGE_DIR" -ov -format UDZO "$DMG_NAME"
+          fi
+          echo "dmg_name=$DMG_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update release with dmg
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+          DMG: ${{ steps.package.outputs.dmg_name }}
+        run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$DMG" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" "$DMG" --repo "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes
+          fi

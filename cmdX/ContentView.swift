@@ -12,6 +12,7 @@ struct ContentView: View {
     @EnvironmentObject var updateChecker: UpdateChecker
 
     @State private var autoLaunch: Bool = false
+    @State private var checkForUpdatesAutomatically: Bool = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -65,6 +66,15 @@ struct ContentView: View {
                     }
                 }
                 .help("Start cmdX when you log in to your Mac.")
+
+                Toggle(isOn: $checkForUpdatesAutomatically) {
+                    Text("Check for updates automatically")
+                }
+                .toggleStyle(.checkbox)
+                .onChange(of: checkForUpdatesAutomatically) { newValue in
+                    UserDefaults.standard.set(newValue, forKey: UpdateChecker.checkForUpdatesEnabledKey)
+                }
+                .help("Look for new cmdX releases in the background. You can still search for updates manually below.")
             }
 
             Divider()
@@ -96,6 +106,10 @@ struct ContentView: View {
                 } else {
                     autoLaunch = isLoginItemInstalled()
                 }
+            }
+
+            if UserDefaults.standard.object(forKey: UpdateChecker.checkForUpdatesEnabledKey) != nil {
+                checkForUpdatesAutomatically = UserDefaults.standard.bool(forKey: UpdateChecker.checkForUpdatesEnabledKey)
             }
         }
     }
