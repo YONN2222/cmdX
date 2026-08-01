@@ -25,9 +25,9 @@
 
 ## 1. Overview
 
-macOS Finder never got a real Cut shortcut. You can copy a file with ⌘C and paste it as a move with ⌘⌥V, but that two-step trick is easy to miss and doesn't match how every other app and operating system handles cut & paste. cmdX makes ⌘X and ⌘V work the same way in Finder as they do everywhere else.
+macOS Finder never got a real Cut shortcut. You can copy a file with ⌘C and paste it as a move with ⌘⌥V, but that two-step trick is easy to miss and doesn't match how every other operating system handles cut & paste. cmdX makes ⌘X and ⌘V work the same way in Finder as they do everywhere else.
 
-cmdX lives in the menu bar, listens only for shortcuts while Finder is frontmost, and does nothing else. No data collection, no network requests, no accounts.
+cmdX lives in the menu bar, listens only for shortcuts while Finder is frontmost, and does nothing else. No data collection, no accounts.
 
 ## 2. Features
 
