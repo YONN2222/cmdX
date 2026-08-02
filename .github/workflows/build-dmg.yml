@@ -32,6 +32,9 @@ jobs:
               -scheme cmdX \
               -configuration Release \
               -derivedDataPath build \
+              -destination "generic/platform=macOS" \
+              ONLY_ACTIVE_ARCH=NO \
+              ARCHS="arm64 x86_64" \
               CODE_SIGNING_ALLOWED=NO \
               CODE_SIGNING_REQUIRED=NO \
               CODE_SIGN_IDENTITY="" \
@@ -43,6 +46,11 @@ jobs:
             sleep 5
           done
           exit 1
+
+      - name: Verify universal binary
+        run: |
+          BIN_PATH="build/Build/Products/Release/cmdX.app/Contents/MacOS/cmdX"
+          lipo -info "$BIN_PATH"
 
       - name: Ad-hoc sign app
         run: |
