@@ -11,12 +11,12 @@ import UserNotifications
 @main
 struct cmdXApp: App {
     @NSApplicationDelegateAdaptor(AppDelegateWrapper.self) var appDelegate
-    @StateObject private var keyInterceptor = KeyInterceptor()
+    @StateObject private var keyInterceptor = KeyInterceptor.shared
     @StateObject private var updateChecker = UpdateChecker()
     @State private var isShowingOnboarding = !UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
 
     init() {
-        keyInterceptor.start()
+        KeyInterceptor.shared.start()
         setupUpdateChecker()
     }
 
