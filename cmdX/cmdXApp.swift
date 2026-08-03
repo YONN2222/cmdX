@@ -14,7 +14,11 @@ struct cmdXApp: App {
     @StateObject private var keyInterceptor = KeyInterceptor()
     @StateObject private var updateChecker = UpdateChecker()
     @State private var isShowingOnboarding = !UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
-    @State private var didLaunch = false
+
+    init() {
+        keyInterceptor.start()
+        setupUpdateChecker()
+    }
 
     var body: some Scene {
         MenuBarExtra {
@@ -32,12 +36,6 @@ struct cmdXApp: App {
                         .foregroundColor(.red)
                         .font(.system(size: 8))
                 }
-            }
-            .onAppear {
-                guard !didLaunch else { return }
-                didLaunch = true
-                keyInterceptor.start()
-                setupUpdateChecker()
             }
         }
         .menuBarExtraStyle(.window)
