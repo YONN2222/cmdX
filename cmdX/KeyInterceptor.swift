@@ -57,6 +57,14 @@ final class KeyInterceptor: ObservableObject {
     }
 
     private static func handleEvent(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            if let tap = shared.eventTap {
+                CGEvent.tapEnable(tap: tap, enable: true)
+                NSLog("cmdX: event tap re-enabled after \(type == .tapDisabledByTimeout ? "timeout" : "user input")")
+            }
+            return nil
+        }
+
         guard type == .keyDown else {
             return Unmanaged.passUnretained(event)
         }
