@@ -1,5 +1,4 @@
 import Cocoa
-import Carbon
 import Combine
 
 final class KeyInterceptor: ObservableObject {
@@ -34,7 +33,7 @@ final class KeyInterceptor: ObservableObject {
                                      userInfo: nil)
 
         guard let eventTap = eventTap else {
-            NSLog("cmdX: failed to create event tap - make sure Input Monitoring is allowed")
+            NSLog("cmdX: failed to create event tap - grant Accessibility access in System Settings > Privacy & Security")
             return
         }
 
@@ -83,33 +82,36 @@ final class KeyInterceptor: ObservableObject {
         }
 
         let flags = event.flags
-        let isCmd = flags.contains(.maskCommand)
-
-        if let chars = event.keyboardGetUnicodeString() {
-            let s = chars.lowercased()
-            if isCmd && s == "x" {
-                shared.cutPending = true
-                shared.publishCutState(true)
-                postShortcut(keyCode: kVK_ANSI_C, flags: [.maskCommand])
-                return nil
-            }
-            if isCmd && s == "c" {
-                shared.cutPending = false
-                shared.publishCutState(false)
-                return Unmanaged.passUnretained(event)
-            }
-            if isCmd && s == "v" {
-                guard shared.cutPending else {
-                    return Unmanaged.passUnretained(event)
-                }
-                shared.cutPending = false
-                shared.publishCutState(false)
-                postShortcut(keyCode: kVK_ANSI_V, flags: [.maskCommand, .maskAlternate])
-                return nil
-            }
+        guard flags.contains(.maskCommand),
+              !flags.contains(.maskAlternate),
+              !flags.contains(.maskControl) else {
+            return Unmanaged.passUnretained(event)
         }
 
-        return Unmanaged.passUnretained(event)
+        switch CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode)) {
+        case Keycode.x:
+            shared.cutPending = true
+            shared.publishCutState(true)
+            postShortcut(keyCode: Keycode.c, flags: [.maskCommand])
+            return nil
+
+        case Keycode.c:
+            shared.cutPending = false
+            shared.publishCutState(false)
+            return Unmanaged.passUnretained(event)
+
+        case Keycode.v:
+            guard shared.cutPending else {
+                return Unmanaged.passUnretained(event)
+            }
+            shared.cutPending = false
+            shared.publishCutState(false)
+            postShortcut(keyCode: Keycode.v, flags: [.maskCommand, .maskAlternate])
+            return nil
+
+        default:
+            return Unmanaged.passUnretained(event)
+        }
     }
 
     private func publishCutState(_ value: Bool) {
@@ -119,18 +121,10 @@ final class KeyInterceptor: ObservableObject {
     }
 }
 
-
-private extension CGEvent {
-    func keyboardGetUnicodeString() -> String? {
-        let length: Int = 4
-        var chars = [UniChar](repeating: 0, count: length)
-        var actualLength: Int = 0
-        self.keyboardGetUnicodeString(maxStringLength: length, actualStringLength: &actualLength, unicodeString: &chars)
-        if actualLength > 0 {
-            return String(utf16CodeUnits: chars, count: actualLength)
-        }
-        return nil
-    }
+private enum Keycode {
+    static let x: CGKeyCode = 7
+    static let c: CGKeyCode = 8
+    static let v: CGKeyCode = 9
 }
 
 private func isFrontmostAppFinder() -> Bool {
@@ -156,7 +150,3 @@ private func postShortcut(keyCode: CGKeyCode, flags: CGEventFlags) {
     keyDown.post(tap: .cgAnnotatedSessionEventTap)
     keyUp.post(tap: .cgAnnotatedSessionEventTap)
 }
-
-private let kVK_ANSI_X: CGKeyCode = 7
-private let kVK_ANSI_C: CGKeyCode = 8
-private let kVK_ANSI_V: CGKeyCode = 9
