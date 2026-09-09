@@ -10,7 +10,7 @@ final class KeyInterceptor: ObservableObject {
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
 
-    private var cutPending = false
+    private var cutPasteboardState = CutPasteboardState()
 
     fileprivate static let syntheticMarker: Int64 = 0x636D_6458
 
@@ -56,7 +56,7 @@ final class KeyInterceptor: ObservableObject {
         runLoopSource = nil
         eventTap = nil
         isRunning = false
-        cutPending = false
+        cancelCut()
         NSLog("cmdX: event tap stopped")
     }
 
@@ -90,22 +90,18 @@ final class KeyInterceptor: ObservableObject {
 
         switch CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode)) {
         case Keycode.x:
-            shared.cutPending = true
-            shared.publishCutState(true)
+            shared.beginCut()
             postShortcut(keyCode: Keycode.c, flags: [.maskCommand])
             return nil
 
         case Keycode.c:
-            shared.cutPending = false
-            shared.publishCutState(false)
+            shared.cancelCut()
             return Unmanaged.passUnretained(event)
 
         case Keycode.v:
-            guard shared.cutPending else {
+            guard shared.consumeCutIfPasteboardIsCurrent() else {
                 return Unmanaged.passUnretained(event)
             }
-            shared.cutPending = false
-            shared.publishCutState(false)
             postShortcut(keyCode: Keycode.v, flags: [.maskCommand, .maskAlternate])
             return nil
 
@@ -114,10 +110,46 @@ final class KeyInterceptor: ObservableObject {
         }
     }
 
+    private func beginCut() {
+        cutPasteboardState.begin(currentChangeCount: NSPasteboard.general.changeCount)
+        publishCutState(true)
+    }
+
+    private func cancelCut() {
+        cutPasteboardState.cancel()
+        publishCutState(false)
+    }
+
+    private func consumeCutIfPasteboardIsCurrent() -> Bool {
+        let shouldMove = cutPasteboardState.consume(
+            currentChangeCount: NSPasteboard.general.changeCount
+        )
+        publishCutState(false)
+        return shouldMove
+    }
+
     private func publishCutState(_ value: Bool) {
         DispatchQueue.main.async {
             self.lastActionWasCut = value
         }
+    }
+}
+
+struct CutPasteboardState {
+    private var expectedChangeCount: Int?
+
+    mutating func begin(currentChangeCount: Int) {
+        // Finder takes pasteboard ownership once when it handles the synthetic Cmd-C.
+        expectedChangeCount = currentChangeCount &+ 1
+    }
+
+    mutating func cancel() {
+        expectedChangeCount = nil
+    }
+
+    mutating func consume(currentChangeCount: Int) -> Bool {
+        defer { cancel() }
+        return expectedChangeCount == currentChangeCount
     }
 }
 
