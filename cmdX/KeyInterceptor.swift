@@ -1,5 +1,4 @@
 import Cocoa
-import Carbon
 import Combine
 
 final class KeyInterceptor: ObservableObject {
@@ -10,6 +9,10 @@ final class KeyInterceptor: ObservableObject {
 
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
+
+    private var cutPending = false
+
+    fileprivate static let syntheticMarker: Int64 = 0x636D_6458
 
     init() {}
 
@@ -30,7 +33,7 @@ final class KeyInterceptor: ObservableObject {
                                      userInfo: nil)
 
         guard let eventTap = eventTap else {
-            NSLog("cmdX: failed to create event tap - make sure Input Monitoring is allowed")
+            NSLog("cmdX: failed to create event tap - grant Accessibility access in System Settings > Privacy & Security")
             return
         }
 
@@ -53,84 +56,75 @@ final class KeyInterceptor: ObservableObject {
         runLoopSource = nil
         eventTap = nil
         isRunning = false
+        cutPending = false
         NSLog("cmdX: event tap stopped")
     }
 
     private static func handleEvent(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            if let tap = shared.eventTap {
+                CGEvent.tapEnable(tap: tap, enable: true)
+                NSLog("cmdX: event tap re-enabled after \(type == .tapDisabledByTimeout ? "timeout" : "user input")")
+            }
+            return nil
+        }
+
         guard type == .keyDown else {
             return Unmanaged.passUnretained(event)
         }
 
-        if !isFrontmostAppFinder() {
+        if event.getIntegerValueField(.eventSourceUserData) == syntheticMarker {
+            return Unmanaged.passUnretained(event)
+        }
+
+        guard isFrontmostAppFinder() else {
             return Unmanaged.passUnretained(event)
         }
 
         let flags = event.flags
-
-        if KeyInterceptor.isPosting {
+        guard flags.contains(.maskCommand),
+              !flags.contains(.maskAlternate),
+              !flags.contains(.maskControl) else {
             return Unmanaged.passUnretained(event)
         }
 
-        let isCmd = flags.contains(.maskCommand)
-        
-        if let chars = event.keyboardGetUnicodeString() {
-            let s = chars.lowercased()
-            if isCmd && s == "x" {
-                KeyInterceptor.isPosting = true
-                postKeySequence(copyOnly: true)
-                KeyInterceptor.isPosting = false
-                shared.setCutState(true)
-                return nil
-            }
-            if isCmd && s == "c" {
-                shared.setCutState(false)
-                return Unmanaged.passUnretained(event)
-            }
-            if isCmd && s == "v" {
-                if shared.lastActionWasCut {
-                    KeyInterceptor.isPosting = true
-                    postKeySequence(pasteMove: true)
-                    KeyInterceptor.isPosting = false
-                    shared.setCutState(false)
-                    return nil
-                }
-                return Unmanaged.passUnretained(event)
-            }
-        }
+        switch CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode)) {
+        case Keycode.x:
+            shared.cutPending = true
+            shared.publishCutState(true)
+            postShortcut(keyCode: Keycode.c, flags: [.maskCommand])
+            return nil
 
-        return Unmanaged.passUnretained(event)
+        case Keycode.c:
+            shared.cutPending = false
+            shared.publishCutState(false)
+            return Unmanaged.passUnretained(event)
+
+        case Keycode.v:
+            guard shared.cutPending else {
+                return Unmanaged.passUnretained(event)
+            }
+            shared.cutPending = false
+            shared.publishCutState(false)
+            postShortcut(keyCode: Keycode.v, flags: [.maskCommand, .maskAlternate])
+            return nil
+
+        default:
+            return Unmanaged.passUnretained(event)
+        }
     }
 
-    private func setCutState(_ v: Bool) {
+    private func publishCutState(_ value: Bool) {
         DispatchQueue.main.async {
-            self.lastActionWasCut = v
-        }
-    }
-    
-    private static func postKeySequence(copyOnly: Bool = false, pasteMove: Bool = false) {
-        if copyOnly {
-            postShortcut(keyCode: kVK_ANSI_C, flags: [.maskCommand])
-            return
-        }
-        if pasteMove {
-            postShortcut(keyCode: kVK_ANSI_V, flags: [.maskCommand, .maskAlternate])
-            return
+            self.lastActionWasCut = value
         }
     }
 }
 
-
-private extension CGEvent {
-    func keyboardGetUnicodeString() -> String? {
-        let length: Int = 4
-        var chars = [UniChar](repeating: 0, count: length)
-        var actualLength: Int = 0
-        self.keyboardGetUnicodeString(maxStringLength: length, actualStringLength: &actualLength, unicodeString: &chars)
-        if actualLength > 0 {
-            return String(utf16CodeUnits: chars, count: actualLength)
-        }
-        return nil
-    }
+private enum Keycode {
+    static let x: CGKeyCode = 7
+    static let c: CGKeyCode = 8
+    static let v: CGKeyCode = 9
 }
 
 private func isFrontmostAppFinder() -> Bool {
@@ -142,18 +136,17 @@ private func isFrontmostAppFinder() -> Bool {
 
 private func postShortcut(keyCode: CGKeyCode, flags: CGEventFlags) {
     let src = CGEventSource(stateID: .hidSystemState)
-    let keyDown = CGEvent(keyboardEventSource: src, virtualKey: keyCode, keyDown: true)
-    keyDown?.flags = flags
-    let keyUp = CGEvent(keyboardEventSource: src, virtualKey: keyCode, keyDown: false)
-    keyUp?.flags = flags
-    keyDown?.post(tap: .cgAnnotatedSessionEventTap)
-    keyUp?.post(tap: .cgAnnotatedSessionEventTap)
-}
+    guard let keyDown = CGEvent(keyboardEventSource: src, virtualKey: keyCode, keyDown: true),
+          let keyUp = CGEvent(keyboardEventSource: src, virtualKey: keyCode, keyDown: false) else {
+        NSLog("cmdX: failed to synthesize keystroke \(keyCode)")
+        return
+    }
 
-private let kVK_ANSI_X: CGKeyCode = 7
-private let kVK_ANSI_C: CGKeyCode = 8
-private let kVK_ANSI_V: CGKeyCode = 9
+    for event in [keyDown, keyUp] {
+        event.flags = flags
+        event.setIntegerValueField(.eventSourceUserData, value: KeyInterceptor.syntheticMarker)
+    }
 
-extension KeyInterceptor {
-    fileprivate static var isPosting = false
+    keyDown.post(tap: .cgAnnotatedSessionEventTap)
+    keyUp.post(tap: .cgAnnotatedSessionEventTap)
 }
