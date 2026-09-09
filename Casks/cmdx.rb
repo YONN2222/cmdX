@@ -1,6 +1,6 @@
 cask "cmdx" do
-  version "1.6.0-pre1"
-  sha256 "004e86f6b58c400663ed43e857753bfce86b92c060b0836171cd1a5da03663f0"
+  version "1.6.0-pre2"
+  sha256 "52fccb90e754ca1a2a2824c9c015f5e2ced7f7a544758968ed9ee0ca8adf6575"
 
   url "https://github.com/YONN2222/cmdX/releases/download/#{version}/cmdX-#{version}.dmg"
   name "cmdX"
