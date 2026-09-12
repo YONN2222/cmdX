@@ -1,3 +1,49 @@
+# Release artifacts
+*.dmg
 *DMG
 .venv
+
+# Xcode
+*.xcuserstate
+*.xcuserdata/
+*.xcuserdatad/
+*.pbxuser
+*.xccheckout
+*.xcscheme
+*.xcplayground
+*.xctest
+*.xcodeproj/xcshareddata/WorkspaceSettings.xcsettings
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcuserdata/
+
+# CocoaPods
+Pods/
+Podfile.lock
+
+# Carthage
+Carthage/Build/
+
+# Swift Package Manager
+.swiftpm/
+.build/
+
+# Derived data / build output
+DerivedData/
+build/
+*.app
+*.dSYM
+
+# Temporary files
+*.swp
+*.swo
+*.tmp
+*.log
+
+# macOS / editor
 .DS_Store
+.vscode/
+.idea/
+
+# Build artifacts
+*.ipa
+*.xcarchive

@@ -24,7 +24,27 @@ jobs:
           echo "tag=$REF_NAME" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Build app (unsigned, ad-hoc)
+      - name: Import signing certificate
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          CERT_PATH="$RUNNER_TEMP/build_certificate.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o "$CERT_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          security import "$CERT_PATH" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | sed 's/"//g')
+
+      - name: Build and sign app
         run: |
           for attempt in 1 2 3; do
             echo "Build attempt $attempt"
@@ -35,9 +55,9 @@ jobs:
               -destination "generic/platform=macOS" \
               ONLY_ACTIVE_ARCH=NO \
               ARCHS="arm64 x86_64" \
-              CODE_SIGNING_ALLOWED=NO \
-              CODE_SIGNING_REQUIRED=NO \
-              CODE_SIGN_IDENTITY="" \
+              CODE_SIGN_STYLE=Manual \
+              CODE_SIGN_IDENTITY="Apple Development" \
+              DEVELOPMENT_TEAM=K2G932QL79 \
               build; then
               exit 0
             fi
@@ -47,15 +67,12 @@ jobs:
           done
           exit 1
 
-      - name: Verify universal binary
+      - name: Verify universal binary and signature
         run: |
           BIN_PATH="build/Build/Products/Release/cmdX.app/Contents/MacOS/cmdX"
           lipo -info "$BIN_PATH"
-
-      - name: Ad-hoc sign app
-        run: |
-          APP_PATH="build/Build/Products/Release/cmdX.app"
-          codesign --force --deep --sign - "$APP_PATH"
+          codesign --verify --deep --strict --verbose=2 "build/Build/Products/Release/cmdX.app"
+          codesign -dv "build/Build/Products/Release/cmdX.app"
 
       - name: Install create-dmg
         run: brew install create-dmg
