@@ -147,7 +147,7 @@ class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterDelegat
     private func sendNotification() {
         let content = UNMutableNotificationContent()
     content.title = "Update available"
-    content.body = "Open the app in the menu bar to install the update."
+    content.body = "A new version of cmdX is available. Click to open the download page."
         content.sound = .default
         content.categoryIdentifier = "UPDATE_CATEGORY"
         content.userInfo = ["url": latestVersionURL?.absoluteString ?? ""]

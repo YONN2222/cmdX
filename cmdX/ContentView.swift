@@ -35,13 +35,14 @@ struct ContentView: View {
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
+            permissionStatusView
+
             VStack(alignment: .leading, spacing: 12) {
                 Button(action: openAccessibilitySettings) {
                     Text("Open Accessibility Settings")
                 }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
-                .help("Grant Accessibility permission so cmdX can listen for shortcuts and trigger Move in Finder.")
+                .buttonStyle(.bordered)
+                .help("Manage cmdX’s Accessibility permission in System Settings.")
 
                 Toggle(isOn: $autoLaunch) {
                     Text("Start automatically on launch")
@@ -91,9 +92,10 @@ struct ContentView: View {
             }
         }
         .padding()
-        .frame(width: 520, height: 280)
+        .frame(width: 520, height: 360)
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear {
+            keyInterceptor.refreshPermissionStatus()
             if #available(macOS 13.0, *) {
                 if UserDefaults.standard.object(forKey: "cmdx.autostart.enabled") != nil {
                     autoLaunch = UserDefaults.standard.bool(forKey: "cmdx.autostart.enabled")
@@ -114,6 +116,57 @@ struct ContentView: View {
         }
     }
 
+
+    private var permissionStatusView: some View {
+        let granted = keyInterceptor.hasAccessibilityPermission
+        return HStack(spacing: 10) {
+            Image(systemName: granted ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                .font(.title2)
+                .foregroundColor(granted ? .green : .orange)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(granted ? "Accessibility access granted" : "Accessibility access needed")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                Text(granted
+                     ? "cmdX can intercept shortcuts."
+                     : "cmdX can’t intercept shortcuts until you grant access.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 8)
+
+            if !granted {
+                Button("Grant Access…") {
+                    grantAccessibility()
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(
+                    (granted ? Color.green : Color.orange).opacity(0.45),
+                    lineWidth: 1
+                )
+        )
+        .accessibilityElement(children: .combine)
+    }
+
+    private func grantAccessibility() {
+        keyInterceptor.promptForAccessibilityPermission()
+        openAccessibilitySettings()
+    }
 
     private func openAccessibilitySettings() {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
@@ -162,7 +215,7 @@ struct ContentView_Previews: PreviewProvider {
         ContentView()
             .environmentObject(KeyInterceptor.shared)
             .environmentObject(UpdateChecker())
-            .frame(width: 520, height: 280)
+            .frame(width: 520, height: 360)
     }
 }
 
