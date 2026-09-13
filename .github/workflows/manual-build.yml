@@ -1,0 +1,101 @@
+name: Manual Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch or tag to build"
+        required: false
+        default: "dev"
+      marketing_version:
+        description: "Override marketing version for this build (optional)"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and sign app (no release)
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Override marketing version
+        if: ${{ inputs.marketing_version != '' }}
+        env:
+          MARKETING_VERSION: ${{ inputs.marketing_version }}
+        run: |
+          agvtool new-marketing-version "$MARKETING_VERSION"
+
+      - name: Import signing certificate
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          CERT_PATH="$RUNNER_TEMP/build_certificate.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o "$CERT_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          security import "$CERT_PATH" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | sed 's/"//g')
+
+      - name: Build and sign app
+        run: |
+          for attempt in 1 2 3; do
+            echo "Build attempt $attempt"
+            if xcodebuild -project cmdX.xcodeproj \
+              -scheme cmdX \
+              -configuration Release \
+              -derivedDataPath build \
+              -destination "generic/platform=macOS" \
+              ONLY_ACTIVE_ARCH=NO \
+              ARCHS="arm64 x86_64" \
+              CODE_SIGN_STYLE=Manual \
+              CODE_SIGN_IDENTITY="Apple Development" \
+              DEVELOPMENT_TEAM=K2G932QL79 \
+              build; then
+              exit 0
+            fi
+            killall -9 XCBBuildService actool AssetCatalogAgent ibtoold 2>/dev/null || true
+            rm -rf build
+            sleep 5
+          done
+          exit 1
+
+      - name: Verify universal binary and signature
+        run: |
+          BIN_PATH="build/Build/Products/Release/cmdX.app/Contents/MacOS/cmdX"
+          lipo -info "$BIN_PATH"
+          codesign --verify --deep --strict --verbose=2 "build/Build/Products/Release/cmdX.app"
+          codesign -dv "build/Build/Products/Release/cmdX.app"
+
+      - name: Zip app for download
+        run: |
+          cd build/Build/Products/Release
+          ditto -c -k --sequesterRsrc --keepParent cmdX.app cmdX.zip
+
+      - name: Sanitize artifact name
+        id: artifact
+        env:
+          REF: ${{ inputs.ref }}
+        run: |
+          SAFE_REF=$(echo "$REF" | tr -c 'A-Za-z0-9._-' '-')
+          echo "name=cmdX-${SAFE_REF}-${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.artifact.outputs.name }}
+          path: build/Build/Products/Release/cmdX.zip
+          retention-days: 14

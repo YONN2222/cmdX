@@ -41,12 +41,23 @@ class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterDelegat
         let url = URL(string: "https://api.github.com/repos/YONN2222/cmdX/releases/latest")!
         
         URLSession.shared.dataTask(with: url) { data, response, error in
-            guard let data = data, error == nil else {
-                if manualCheck {
-                    DispatchQueue.main.async {
-                        self.showNoUpdateAlert()
-                    }
-                }
+            if let error {
+                self.handleUpdateCheckFailure(error.localizedDescription, manualCheck: manualCheck)
+                return
+            }
+
+            guard let data else {
+                self.handleUpdateCheckFailure("The server returned no data.", manualCheck: manualCheck)
+                return
+            }
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                self.handleUpdateCheckFailure("The server returned an invalid response.", manualCheck: manualCheck)
+                return
+            }
+
+            guard (200...299).contains(httpResponse.statusCode) else {
+                self.handleUpdateCheckFailure("GitHub returned HTTP \(httpResponse.statusCode).", manualCheck: manualCheck)
                 return
             }
             
@@ -89,8 +100,19 @@ class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterDelegat
                         }
                     }
                 }
+            } else {
+                self.handleUpdateCheckFailure("The server response could not be decoded.", manualCheck: manualCheck)
             }
         }.resume()
+    }
+
+    private func handleUpdateCheckFailure(_ reason: String, manualCheck: Bool) {
+        NSLog("cmdX: update check failed - \(reason)")
+        guard manualCheck else { return }
+
+        DispatchQueue.main.async {
+            self.showUpdateCheckFailedAlert()
+        }
     }
 
     private func isNewer(latestVersion: String, currentVersion: String) -> Bool {
@@ -181,6 +203,15 @@ class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterDelegat
             alert.addButton(withTitle: "OK")
             alert.runModal()
         }
+    }
+
+    private func showUpdateCheckFailedAlert() {
+        let alert = NSAlert()
+        alert.messageText = "Unable to Check for Updates"
+        alert.informativeText = "cmdX couldn't check for updates. Check your internet connection and try again."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 }
 
