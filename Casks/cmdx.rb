@@ -17,9 +17,9 @@ cask "cmdx" do
   app "cmdX.app"
 
   postflight_steps do
-    app_path = appdir/"cmdX.app"
-    next unless app_path.exist?
-    system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", app_path]
+    if_path_exists "{{appdir}}/cmdX.app" do
+      run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{appdir}}/cmdX.app"]
+    end
   end
 
   caveats <<~EOS
