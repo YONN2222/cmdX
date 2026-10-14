@@ -22,6 +22,15 @@ cask "cmdx" do
     end
   end
 
+  uninstall quit: "com.yonn2222.cmdX"
+
+  zap trash: [
+    "~/Library/Caches/com.yonn2222.cmdX",
+    "~/Library/HTTPStorages/com.yonn2222.cmdX",
+    "~/Library/LaunchAgents/com.yonn2222.cmdX.loginitem.plist",
+    "~/Library/Preferences/com.yonn2222.cmdX.plist",
+  ]
+
   caveats <<~EOS
     cmdX needs Accessibility permission under System Settings → Privacy & Security → Accessibility.
   EOS
