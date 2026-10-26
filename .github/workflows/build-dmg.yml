@@ -21,6 +21,10 @@ jobs:
           REF_NAME: ${{ github.ref_name }}
         run: |
           VERSION="${REF_NAME#v}"
+          if [[ ! "$VERSION" =~ ^[0-9]+(\.[0-9]+)+$ ]]; then
+            echo "::error::'$REF_NAME' is not a version tag. Run this workflow from a tag like 1.6.2, or use Manual Build for branches."
+            exit 1
+          fi
           echo "tag=$REF_NAME" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
@@ -45,6 +49,8 @@ jobs:
           security list-keychain -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | sed 's/"//g')
 
       - name: Build and sign app
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           for attempt in 1 2 3; do
             echo "Build attempt $attempt"
@@ -58,6 +64,8 @@ jobs:
               CODE_SIGN_STYLE=Manual \
               CODE_SIGN_IDENTITY="Apple Development" \
               DEVELOPMENT_TEAM=K2G932QL79 \
+              MARKETING_VERSION="$VERSION" \
+              CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
               build; then
               exit 0
             fi
@@ -67,8 +75,15 @@ jobs:
           done
           exit 1
 
-      - name: Verify universal binary and signature
+      - name: Verify universal binary, signature and version
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
+          BUILT_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "build/Build/Products/Release/cmdX.app/Contents/Info.plist")
+          if [ "$BUILT_VERSION" != "$VERSION" ]; then
+            echo "::error::App reports version $BUILT_VERSION but the tag is $VERSION"
+            exit 1
+          fi
           BIN_PATH="build/Build/Products/Release/cmdX.app/Contents/MacOS/cmdX"
           lipo -info "$BIN_PATH"
           codesign --verify --deep --strict --verbose=2 "build/Build/Products/Release/cmdX.app"
