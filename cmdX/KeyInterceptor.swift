@@ -1,14 +1,17 @@
 import Cocoa
 import Combine
+import ApplicationServices
 
 final class KeyInterceptor: ObservableObject {
     static let shared = KeyInterceptor()
 
     @Published private(set) var isRunning = false
     @Published private(set) var lastActionWasCut = false
+    @Published private(set) var hasAccessibilityPermission: Bool = AXIsProcessTrusted()
 
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
+    private var activityToken: NSObjectProtocol?
 
     private var cutPasteboardState = CutPasteboardState()
 
@@ -18,6 +21,30 @@ final class KeyInterceptor: ObservableObject {
 
     func start() {
         guard eventTap == nil else { return }
+
+        // A keyboard event tap requires Accessibility permission. Without it,
+        // tapCreate fails silently — so check first, publish the status for the
+        // UI, and bail out cleanly until the user grants access.
+        guard AXIsProcessTrusted() else {
+            if hasAccessibilityPermission { hasAccessibilityPermission = false }
+            NSLog("cmdX: accessibility permission not granted; event tap not started")
+            return
+        }
+        if !hasAccessibilityPermission { hasAccessibilityPermission = true }
+
+        // Prevent App Nap. When the menu bar icon is hidden the app has no
+        // visible UI, so macOS would otherwise throttle it — which makes the
+        // event-tap callback time out and the system disables the tap. Holding
+        // this activity token keeps the app responsive while still allowing the
+        // Mac to sleep normally when idle.
+        if activityToken == nil {
+            activityToken = ProcessInfo.processInfo.beginActivity(
+                options: [.userInitiatedAllowingIdleSystemSleep,
+                          .suddenTerminationDisabled,
+                          .automaticTerminationDisabled],
+                reason: "cmdX intercepts keyboard shortcuts globally and must stay responsive even with no visible UI"
+            )
+        }
 
         let mask = CGEventMask(1 << CGEventType.keyDown.rawValue | 1 << CGEventType.flagsChanged.rawValue)
 
@@ -46,6 +73,28 @@ final class KeyInterceptor: ObservableObject {
         }
     }
 
+    /// Re-reads the current Accessibility trust status and publishes any change.
+    @discardableResult
+    func refreshPermissionStatus() -> Bool {
+        let trusted = AXIsProcessTrusted()
+        if trusted != hasAccessibilityPermission {
+            hasAccessibilityPermission = trusted
+        }
+        return trusted
+    }
+
+    /// Asks macOS to show the Accessibility permission prompt for this app.
+    /// (The system dialog only appears if access hasn't been decided yet;
+    /// otherwise this just refreshes the published status.)
+    func promptForAccessibilityPermission() {
+        let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
+        let options = [key: true] as CFDictionary
+        let trusted = AXIsProcessTrustedWithOptions(options)
+        if trusted != hasAccessibilityPermission {
+            hasAccessibilityPermission = trusted
+        }
+    }
+
     func stop() {
         if let runLoopSource = runLoopSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
@@ -57,10 +106,18 @@ final class KeyInterceptor: ObservableObject {
         eventTap = nil
         isRunning = false
         cancelCut()
+        if let token = activityToken {
+            ProcessInfo.processInfo.endActivity(token)
+            activityToken = nil
+        }
         NSLog("cmdX: event tap stopped")
     }
 
     private static func handleEvent(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+        // The system disables active event taps when the callback is too slow
+        // (e.g. under App Nap) or on certain user input. When that happens it
+        // notifies us with these event types — re-enable the tap or it stays
+        // dead forever, which is exactly what made cmdX stop working when hidden.
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             if let tap = shared.eventTap {
                 CGEvent.tapEnable(tap: tap, enable: true)
