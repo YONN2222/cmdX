@@ -12,6 +12,7 @@ final class KeyInterceptor: ObservableObject {
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var activityToken: NSObjectProtocol?
+    private var didLogTapFailure = false
 
     private var cutPasteboardState = CutPasteboardState()
 
@@ -22,31 +23,12 @@ final class KeyInterceptor: ObservableObject {
     func start() {
         guard eventTap == nil else { return }
 
-        // A keyboard event tap requires Accessibility permission. Without it,
-        // tapCreate fails silently — so check first, publish the status for the
-        // UI, and bail out cleanly until the user grants access.
-        guard AXIsProcessTrusted() else {
-            if hasAccessibilityPermission { hasAccessibilityPermission = false }
-            NSLog("cmdX: accessibility permission not granted; event tap not started")
+        guard refreshPermissionStatus() else {
+            NSLog("cmdX: accessibility permission not granted, event tap not started")
             return
         }
-        if !hasAccessibilityPermission { hasAccessibilityPermission = true }
 
-        // Prevent App Nap. When the menu bar icon is hidden the app has no
-        // visible UI, so macOS would otherwise throttle it — which makes the
-        // event-tap callback time out and the system disables the tap. Holding
-        // this activity token keeps the app responsive while still allowing the
-        // Mac to sleep normally when idle.
-        if activityToken == nil {
-            activityToken = ProcessInfo.processInfo.beginActivity(
-                options: [.userInitiatedAllowingIdleSystemSleep,
-                          .suddenTerminationDisabled,
-                          .automaticTerminationDisabled],
-                reason: "cmdX intercepts keyboard shortcuts globally and must stay responsive even with no visible UI"
-            )
-        }
-
-        let mask = CGEventMask(1 << CGEventType.keyDown.rawValue | 1 << CGEventType.flagsChanged.rawValue)
+        let mask = CGEventMask(1 << CGEventType.keyDown.rawValue)
 
         let callback: CGEventTapCallBack = { proxy, type, event, refcon in
             return KeyInterceptor.handleEvent(proxy: proxy, type: type, event: event)
@@ -60,6 +42,8 @@ final class KeyInterceptor: ObservableObject {
                                      userInfo: nil)
 
         guard let eventTap = eventTap else {
+            guard !didLogTapFailure else { return }
+            didLogTapFailure = true
             NSLog("cmdX: failed to create event tap - grant Accessibility access in System Settings > Privacy & Security")
             return
         }
@@ -69,11 +53,22 @@ final class KeyInterceptor: ObservableObject {
             CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
             CGEvent.tapEnable(tap: eventTap, enable: true)
             isRunning = true
+            didLogTapFailure = false
+            beginBackgroundActivity()
             NSLog("cmdX: event tap started")
         }
     }
 
-    /// Re-reads the current Accessibility trust status and publishes any change.
+    // Without visible UI macOS puts the app into App Nap, the tap callback then times out
+    // and the system disables the tap. Idle system sleep stays allowed.
+    private func beginBackgroundActivity() {
+        guard activityToken == nil else { return }
+        activityToken = ProcessInfo.processInfo.beginActivity(
+            options: [.userInitiatedAllowingIdleSystemSleep, .suddenTerminationDisabled, .automaticTerminationDisabled],
+            reason: "cmdX intercepts Finder shortcuts and has to stay responsive without visible UI"
+        )
+    }
+
     @discardableResult
     func refreshPermissionStatus() -> Bool {
         let trusted = AXIsProcessTrusted()
@@ -83,9 +78,7 @@ final class KeyInterceptor: ObservableObject {
         return trusted
     }
 
-    /// Asks macOS to show the Accessibility permission prompt for this app.
-    /// (The system dialog only appears if access hasn't been decided yet;
-    /// otherwise this just refreshes the published status.)
+    // The system dialog only appears while access is undecided.
     func promptForAccessibilityPermission() {
         let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
         let options = [key: true] as CFDictionary
@@ -114,10 +107,6 @@ final class KeyInterceptor: ObservableObject {
     }
 
     private static func handleEvent(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
-        // The system disables active event taps when the callback is too slow
-        // (e.g. under App Nap) or on certain user input. When that happens it
-        // notifies us with these event types — re-enable the tap or it stays
-        // dead forever, which is exactly what made cmdX stop working when hidden.
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             if let tap = shared.eventTap {
                 CGEvent.tapEnable(tap: tap, enable: true)
@@ -126,15 +115,8 @@ final class KeyInterceptor: ObservableObject {
             return nil
         }
 
+        // Cheapest checks first: this runs for every keystroke system-wide.
         guard type == .keyDown else {
-            return Unmanaged.passUnretained(event)
-        }
-
-        if event.getIntegerValueField(.eventSourceUserData) == syntheticMarker {
-            return Unmanaged.passUnretained(event)
-        }
-
-        guard isFrontmostAppFinder() else {
             return Unmanaged.passUnretained(event)
         }
 
@@ -145,7 +127,14 @@ final class KeyInterceptor: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
 
-        switch CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode)) {
+        let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
+        guard keyCode == Keycode.x || keyCode == Keycode.c || keyCode == Keycode.v,
+              event.getIntegerValueField(.eventSourceUserData) != syntheticMarker,
+              isFrontmostAppFinder() else {
+            return Unmanaged.passUnretained(event)
+        }
+
+        switch keyCode {
         case Keycode.x:
             shared.beginCut()
             postShortcut(keyCode: Keycode.c, flags: [.maskCommand])

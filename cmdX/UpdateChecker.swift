@@ -1,215 +1,246 @@
+import AppKit
 import Combine
-import SwiftUI
 import UserNotifications
 
-class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterDelegate {
-    @Published var isUpdateAvailable = false
-    private var latestVersionURL: URL?
-    private var notificationsEnabled = false
+enum UpdateCheckFrequency: String, CaseIterable, Identifiable {
+    case never
+    case hourly
+    case daily
+    case weekly
 
-    static let checkForUpdatesEnabledKey = "cmdx.updateCheck.enabled"
-    private static let lastNotifiedVersionKey = "cmdx.updateCheck.lastNotifiedVersion"
+    var id: String { rawValue }
 
-    private var isAutomaticCheckingEnabled: Bool {
-        if UserDefaults.standard.object(forKey: Self.checkForUpdatesEnabledKey) == nil {
-            return true
+    var title: String {
+        switch self {
+        case .never: "Never"
+        case .hourly: "Hourly"
+        case .daily: "Daily"
+        case .weekly: "Weekly"
         }
-        return UserDefaults.standard.bool(forKey: Self.checkForUpdatesEnabledKey)
     }
 
+    var interval: TimeInterval? {
+        switch self {
+        case .never: nil
+        case .hourly: 3600
+        case .daily: 86_400
+        case .weekly: 604_800
+        }
+    }
+}
+
+final class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterDelegate {
+    @Published private(set) var isUpdateAvailable = false
+    @Published var frequency: UpdateCheckFrequency {
+        didSet { UserDefaults.standard.set(frequency.rawValue, forKey: Self.frequencyKey) }
+    }
+
+    private static let frequencyKey = "cmdx.updateCheck.frequency"
+    private static let legacyEnabledKey = "cmdx.updateCheck.enabled"
+    private static let lastCheckKey = "cmdx.updateCheck.lastCheck"
+    private static let lastNotifiedVersionKey = "cmdx.updateCheck.lastNotifiedVersion"
+    private static let latestReleaseAPI = URL(string: "https://api.github.com/repos/YONN2222/cmdX/releases/latest")!
+    private static let releasesPage = URL(string: "https://github.com/YONN2222/cmdX/releases/latest")!
+
+    private var latestVersionURL: URL?
+    private var schedulerTimer: Timer?
+
     override init() {
+        frequency = Self.storedFrequency()
         super.init()
         UNUserNotificationCenter.current().delegate = self
+    }
 
-        UNUserNotificationCenter.current().getNotificationSettings { settings in
-            self.notificationsEnabled = (settings.authorizationStatus == .authorized)
-            print("DEBUG: Notifications enabled: \(self.notificationsEnabled)")
+    private static func storedFrequency() -> UpdateCheckFrequency {
+        let defaults = UserDefaults.standard
+        if let raw = defaults.string(forKey: frequencyKey), let stored = UpdateCheckFrequency(rawValue: raw) {
+            return stored
         }
+        if defaults.object(forKey: legacyEnabledKey) != nil, !defaults.bool(forKey: legacyEnabledKey) {
+            return .never
+        }
+        return .daily
+    }
+
+    func start() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, error in
+            if let error {
+                NSLog("cmdX: notification authorization failed - \(error.localizedDescription)")
+            } else if !granted {
+                NSLog("cmdX: notifications not allowed, falling back to alerts")
+            }
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+            self?.checkIfDue()
+        }
+
+        // Short enough for the hourly option, and catches up after the Mac was asleep.
+        let timer = Timer(timeInterval: 900, repeats: true) { [weak self] _ in
+            self?.checkIfDue()
+        }
+        timer.tolerance = 120
+        RunLoop.main.add(timer, forMode: .common)
+        schedulerTimer = timer
+    }
+
+    private func checkIfDue() {
+        guard let interval = frequency.interval else { return }
+        if let lastCheck = UserDefaults.standard.object(forKey: Self.lastCheckKey) as? Date {
+            let elapsed = Date().timeIntervalSince(lastCheck)
+            if elapsed >= 0 && elapsed < interval {
+                return
+            }
+        }
+        checkForUpdates()
     }
 
     func checkForUpdates(manualCheck: Bool = false) {
-        guard manualCheck || isAutomaticCheckingEnabled else {
-            print("DEBUG: Skipping automatic update check (disabled by user)")
-            return
-        }
-
-        UNUserNotificationCenter.current().getNotificationSettings { settings in
-            self.notificationsEnabled = (settings.authorizationStatus == .authorized)
-            print("DEBUG: Notification status check - enabled: \(self.notificationsEnabled)")
-        }
-
-        let url = URL(string: "https://api.github.com/repos/YONN2222/cmdX/releases/latest")!
-        
-        URLSession.shared.dataTask(with: url) { data, response, error in
-            if let error {
-                self.handleUpdateCheckFailure(error.localizedDescription, manualCheck: manualCheck)
-                return
-            }
-
-            guard let data else {
-                self.handleUpdateCheckFailure("The server returned no data.", manualCheck: manualCheck)
-                return
-            }
-
-            guard let httpResponse = response as? HTTPURLResponse else {
-                self.handleUpdateCheckFailure("The server returned an invalid response.", manualCheck: manualCheck)
-                return
-            }
-
-            guard (200...299).contains(httpResponse.statusCode) else {
-                self.handleUpdateCheckFailure("GitHub returned HTTP \(httpResponse.statusCode).", manualCheck: manualCheck)
-                return
-            }
-            
-            if let release = try? JSONDecoder().decode(GitHubRelease.self, from: data) {
-                let latestVersion = release.tagName.replacingOccurrences(of: "v", with: "").trimmingCharacters(in: .whitespaces)
-                self.latestVersionURL = URL(string: release.htmlURL)
-                let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
-                
-                print("DEBUG: Latest version from GitHub: \(latestVersion)")
-                print("DEBUG: Current version: \(currentVersion)")
-                print("DEBUG: Is newer: \(self.isNewer(latestVersion: latestVersion, currentVersion: currentVersion))")
-                
-                if self.isNewer(latestVersion: latestVersion, currentVersion: currentVersion) {
-                    DispatchQueue.main.async {
-                        self.isUpdateAvailable = true
-                        print("DEBUG: Update is available! Setting flag.")
-
-                        let alreadyNotifiedThisVersion = UserDefaults.standard.string(forKey: Self.lastNotifiedVersionKey) == latestVersion
-
-                        if manualCheck {
-                            self.showUpdateAlert()
-                        } else if alreadyNotifiedThisVersion {
-                            print("DEBUG: Already notified about \(latestVersion), skipping repeat alert")
-                        } else {
-                            UserDefaults.standard.set(latestVersion, forKey: Self.lastNotifiedVersionKey)
-                            if self.notificationsEnabled {
-                                print("DEBUG: Sending notification (notifications enabled)")
-                                self.sendNotification()
-                            } else {
-                                print("DEBUG: Showing popup (notifications disabled)")
-                                self.showUpdateAlert()
-                            }
-                        }
-                    }
-                } else {
-                    print("DEBUG: No update available (current version is up to date or newer)")
-                    if manualCheck {
-                        DispatchQueue.main.async {
-                            self.showNoUpdateAlert()
-                        }
-                    }
-                }
-            } else {
-                self.handleUpdateCheckFailure("The server response could not be decoded.", manualCheck: manualCheck)
+        URLSession.shared.dataTask(with: Self.latestReleaseAPI) { data, response, error in
+            DispatchQueue.main.async {
+                self.handleResponse(data: data, response: response, error: error, manualCheck: manualCheck)
             }
         }.resume()
     }
 
-    private func handleUpdateCheckFailure(_ reason: String, manualCheck: Bool) {
-        NSLog("cmdX: update check failed - \(reason)")
-        guard manualCheck else { return }
-
-        DispatchQueue.main.async {
-            self.showUpdateCheckFailedAlert()
+    private func handleResponse(data: Data?, response: URLResponse?, error: Error?, manualCheck: Bool) {
+        if let error {
+            return handleFailure(error.localizedDescription, manualCheck: manualCheck)
         }
+        guard let httpResponse = response as? HTTPURLResponse else {
+            return handleFailure("invalid response", manualCheck: manualCheck)
+        }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            return handleFailure("GitHub returned HTTP \(httpResponse.statusCode)", manualCheck: manualCheck)
+        }
+        guard let data, let release = try? JSONDecoder().decode(GitHubRelease.self, from: data) else {
+            return handleFailure("response could not be decoded", manualCheck: manualCheck)
+        }
+
+        UserDefaults.standard.set(Date(), forKey: Self.lastCheckKey)
+
+        let latestVersion = Self.normalizedVersion(release.tagName)
+        let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
+        latestVersionURL = URL(string: release.htmlURL)
+
+        guard Self.isVersion(latestVersion, newerThan: currentVersion) else {
+            isUpdateAvailable = false
+            if manualCheck {
+                showAlert(title: "No Update Available", message: "You are already using the latest version of cmdX (\(currentVersion)).")
+            }
+            return
+        }
+
+        isUpdateAvailable = true
+
+        if manualCheck {
+            showUpdateAlert(version: latestVersion)
+            return
+        }
+
+        guard UserDefaults.standard.string(forKey: Self.lastNotifiedVersionKey) != latestVersion else { return }
+        notifyAboutUpdate(version: latestVersion)
     }
 
-    private func isNewer(latestVersion: String, currentVersion: String) -> Bool {
-        let latestComponents = latestVersion.split(separator: ".").compactMap { Int($0) }
-        let currentComponents = currentVersion.split(separator: ".").compactMap { Int($0) }
-        
-        print("DEBUG: Latest components: \(latestComponents)")
-        print("DEBUG: Current components: \(currentComponents)")
-        
-        let maxCount = max(latestComponents.count, currentComponents.count)
-        
-        for i in 0..<maxCount {
-            let latest = i < latestComponents.count ? latestComponents[i] : 0
-            let current = i < currentComponents.count ? currentComponents[i] : 0
-            
-            print("DEBUG: Position \(i): latest=\(latest), current=\(current)")
-            
-            if latest > current {
-                print("DEBUG: Returning true (latest > current)")
-                return true
-            }
-            if latest < current {
-                print("DEBUG: Returning false (latest < current)")
-                return false
+    private func handleFailure(_ reason: String, manualCheck: Bool) {
+        NSLog("cmdX: update check failed - \(reason)")
+        guard manualCheck else { return }
+        showAlert(
+            title: "Unable to Check for Updates",
+            message: "cmdX couldn't check for updates. Check your internet connection and try again.",
+            style: .warning
+        )
+    }
+
+    static func normalizedVersion(_ tag: String) -> String {
+        let trimmed = tag.trimmingCharacters(in: .whitespaces)
+        return trimmed.lowercased().hasPrefix("v") ? String(trimmed.dropFirst()) : trimmed
+    }
+
+    static func isVersion(_ latest: String, newerThan current: String) -> Bool {
+        let latestParts = latest.split(separator: ".").map { Int($0) ?? 0 }
+        let currentParts = current.split(separator: ".").map { Int($0) ?? 0 }
+
+        for index in 0..<max(latestParts.count, currentParts.count) {
+            let latestPart = index < latestParts.count ? latestParts[index] : 0
+            let currentPart = index < currentParts.count ? currentParts[index] : 0
+            if latestPart != currentPart {
+                return latestPart > currentPart
             }
         }
-        
-        print("DEBUG: Returning false (versions equal)")
         return false
     }
 
-    private func sendNotification() {
-        let content = UNMutableNotificationContent()
-    content.title = "Update available"
-    content.body = "A new version of cmdX is available. Click to open the download page."
-        content.sound = .default
-        content.categoryIdentifier = "UPDATE_CATEGORY"
-        content.userInfo = ["url": latestVersionURL?.absoluteString ?? ""]
-        
-        let request = UNNotificationRequest(identifier: "cmdx-update-notification", content: content, trigger: nil)
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                print("DEBUG: Error adding notification: \(error)")
-            } else {
-                print("DEBUG: Notification added successfully")
-            }
-        }
-    }
-    
-    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
-        print("DEBUG: Notification clicked!")
-        DispatchQueue.main.async {
-            NSApp.activate(ignoringOtherApps: true)
-            self.showUpdateAlert()
-        }
-        
-        completionHandler()
-    }
-    
-    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-        print("DEBUG: Will present notification")
-        completionHandler([.banner, .sound])
-    }
+    // MARK: - Presentation
 
-    private func showUpdateAlert() {
-        DispatchQueue.main.async {
-            let alert = NSAlert()
-            alert.messageText = "Update Available"
-            alert.informativeText = "A new version of cmdX is available. Do you want to go to the download page?"
-            alert.alertStyle = .informational
-            alert.addButton(withTitle: "Open Download Page")
-            alert.addButton(withTitle: "Cancel")
-            
-            if alert.runModal() == .alertFirstButtonReturn {
-                if let url = self.latestVersionURL {
-                    NSWorkspace.shared.open(url)
+    private func notifyAboutUpdate(version: String) {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            DispatchQueue.main.async {
+                switch settings.authorizationStatus {
+                case .authorized, .provisional:
+                    self.sendNotification(version: version)
+                case .denied:
+                    UserDefaults.standard.set(version, forKey: Self.lastNotifiedVersionKey)
+                    self.showUpdateAlert(version: version)
+                default:
+                    // The permission prompt is still open, try again on the next check.
+                    break
                 }
             }
         }
     }
 
-    private func showNoUpdateAlert() {
-        DispatchQueue.main.async {
-            let alert = NSAlert()
-            alert.messageText = "No Update Available"
-            alert.informativeText = "You are already using the latest version of cmdX."
-            alert.alertStyle = .informational
-            alert.addButton(withTitle: "OK")
-            alert.runModal()
+    private func sendNotification(version: String) {
+        let content = UNMutableNotificationContent()
+        content.title = "cmdX \(version) is available"
+        content.body = "Click to open the download page."
+        content.sound = .default
+
+        let request = UNNotificationRequest(identifier: "cmdx-update-notification", content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error {
+                NSLog("cmdX: failed to deliver update notification - \(error.localizedDescription)")
+                return
+            }
+            DispatchQueue.main.async {
+                UserDefaults.standard.set(version, forKey: Self.lastNotifiedVersionKey)
+            }
         }
     }
 
-    private func showUpdateCheckFailedAlert() {
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+        DispatchQueue.main.async {
+            self.openDownloadPage()
+        }
+        completionHandler()
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .sound])
+    }
+
+    private func openDownloadPage() {
+        NSWorkspace.shared.open(latestVersionURL ?? Self.releasesPage)
+    }
+
+    private func showUpdateAlert(version: String) {
+        NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
-        alert.messageText = "Unable to Check for Updates"
-        alert.informativeText = "cmdX couldn't check for updates. Check your internet connection and try again."
-        alert.alertStyle = .warning
+        alert.messageText = "Update Available"
+        alert.informativeText = "cmdX \(version) is available. Do you want to go to the download page?"
+        alert.addButton(withTitle: "Open Download Page")
+        alert.addButton(withTitle: "Cancel")
+        if alert.runModal() == .alertFirstButtonReturn {
+            openDownloadPage()
+        }
+    }
+
+    private func showAlert(title: String, message: String, style: NSAlert.Style = .informational) {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.alertStyle = style
         alert.addButton(withTitle: "OK")
         alert.runModal()
     }
@@ -218,7 +249,7 @@ class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterDelegat
 nonisolated struct GitHubRelease: Codable, Sendable {
     let tagName: String
     let htmlURL: String
-    
+
     enum CodingKeys: String, CodingKey {
         case tagName = "tag_name"
         case htmlURL = "html_url"

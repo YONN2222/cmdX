@@ -7,38 +7,39 @@ import SwiftUI
 import AppKit
 import Combine
 import ServiceManagement
-import UserNotifications
 
 @main
 struct cmdXApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
-        // The app's lifetime is anchored to this background agent + its run loop,
-        // NOT to the menu bar item. That is the whole fix: the menu bar icon is a
-        // classic `NSStatusItem` (created in AppDelegate), so when macOS 26 hides
-        // or removes it, the icon disappears but the process — and the key
-        // interceptor — keeps running. This empty `Settings` scene only satisfies
-        // the `App` protocol; it shows nothing.
+        // The status item lives in AppDelegate so the process doesn't quit when macOS hides it.
         Settings {
             EmptyView()
         }
     }
 }
 
+enum Preferences {
+    static let hideMenuBarIcon = "cmdx.menuBarIcon.hidden"
+    static let autostartConfigured = "cmdx.autostart.configured"
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private let interceptor = KeyInterceptor.shared
-    let updateChecker = UpdateChecker()
+    private let updateChecker = UpdateChecker()
 
     private var statusItem: NSStatusItem?
     private var popover: NSPopover?
+    private var settingsWindow: NSWindow?
+    private var lastPopoverClose = Date.distantPast
     private var globalEventMonitor: Any?
     private var localEventMonitor: Any?
-    private var updateCancellable: AnyCancellable?
+    private var cancellables = Set<AnyCancellable>()
+    private var visibilityObservation: NSKeyValueObservation?
     private var permissionTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Single-instance guard: if another copy is already running, defer to it.
         if let bundleID = Bundle.main.bundleIdentifier {
             let ownPID = ProcessInfo.processInfo.processIdentifier
             let alreadyRunning = NSWorkspace.shared.runningApplications.contains {
@@ -49,27 +50,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             }
         }
 
-        // Run as a background agent: no Dock icon, no app-switcher entry.
         NSApp.setActivationPolicy(.accessory)
-
-        // The whole point of the app. It is started here — independent of the
-        // menu bar item — so it keeps running even if the icon is hidden.
-        interceptor.start()
 
         setupStatusItem()
         setupPopover()
         observeUpdateAvailability()
+        observeMenuBarIconPreference()
         setupPermissionHandling()
-
         configureAutostart()
-        setupUpdateChecking()
+        updateChecker.start()
     }
 
-    // Never quit just because a window closed (e.g. the Settings window). The
-    // status item being hidden does not close a window, but this guarantees the
-    // agent — and the key interceptor — stays alive regardless.
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
+    }
+
+    // Opening cmdX again while it runs is the way back to the settings when the icon is hidden.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        UserDefaults.standard.set(false, forKey: Preferences.hideMenuBarIcon)
+        statusItem?.isVisible = true
+        // Give the menu bar time to place the item. If macOS keeps it hidden
+        // (System Settings > Menu Bar), fall back to a regular window.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            guard let self else { return }
+            if self.isStatusItemOnScreen {
+                self.showPopover()
+            } else {
+                self.showSettingsWindow()
+            }
+        }
+        return false
     }
 
     // MARK: - Menu bar item
@@ -83,74 +93,117 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             button.action = #selector(togglePopover)
             button.target = self
         }
-        // Let the user hide it from the menu bar without quitting the app.
         item.behavior = [.removalAllowed]
+        let defaults = UserDefaults.standard
+        if defaults.bool(forKey: Preferences.hideMenuBarIcon) {
+            item.isVisible = false
+        } else if !item.isVisible {
+            defaults.set(true, forKey: Preferences.hideMenuBarIcon)
+        }
         statusItem = item
+
+        // Keeps the preference in sync when the icon is Cmd-dragged out of the menu bar.
+        visibilityObservation = item.observe(\.isVisible) { item, _ in
+            let hidden = !item.isVisible
+            if UserDefaults.standard.bool(forKey: Preferences.hideMenuBarIcon) != hidden {
+                UserDefaults.standard.set(hidden, forKey: Preferences.hideMenuBarIcon)
+            }
+        }
     }
 
-    private func setupPopover() {
-        let popover = NSPopover()
-        popover.contentSize = NSSize(width: 520, height: 360)
-        popover.behavior = .transient
-        popover.delegate = self
-        popover.contentViewController = NSHostingController(
+    private func makeSettingsController() -> NSViewController {
+        let hostingController = NSHostingController(
             rootView: ContentView()
                 .environmentObject(interceptor)
                 .environmentObject(updateChecker)
         )
+        hostingController.sizingOptions = .preferredContentSize
+        return hostingController
+    }
+
+    private func setupPopover() {
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.delegate = self
+        popover.contentViewController = makeSettingsController()
         self.popover = popover
     }
 
-    /// Turns the menu bar icon red when an update is available (the old red dot).
+    private var isStatusItemOnScreen: Bool {
+        guard let item = statusItem, item.isVisible, let window = item.button?.window, window.isVisible else {
+            return false
+        }
+        return NSScreen.screens.contains { $0.frame.intersects(window.frame) }
+    }
+
+    private func showSettingsWindow() {
+        if settingsWindow == nil {
+            let window = NSWindow(contentViewController: makeSettingsController())
+            window.title = "cmdX"
+            window.styleMask = [.titled, .closable]
+            window.isReleasedWhenClosed = false
+            settingsWindow = window
+        }
+        settingsWindow?.center()
+        settingsWindow?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
     private func observeUpdateAvailability() {
-        updateCancellable = updateChecker.$isUpdateAvailable
+        updateChecker.$isUpdateAvailable
             .receive(on: RunLoop.main)
             .sink { [weak self] available in
                 self?.statusItem?.button?.contentTintColor = available ? .systemRed : nil
             }
+            .store(in: &cancellables)
     }
 
-    /// On launch, verifies Accessibility permission and prompts if it's missing.
-    /// Then polls so the popover's status stays live and the interceptor starts
-    /// automatically the moment the user grants access (no relaunch needed).
-    private func setupPermissionHandling() {
-        if !interceptor.refreshPermissionStatus() {
-            interceptor.promptForAccessibilityPermission()
-        }
-
-        permissionTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
-            let granted = self.interceptor.refreshPermissionStatus()
-            if granted && !self.interceptor.isRunning {
-                self.interceptor.start()
+    private func observeMenuBarIconPreference() {
+        NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
+            .map { _ in UserDefaults.standard.bool(forKey: Preferences.hideMenuBarIcon) }
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] hidden in
+                guard let self, let item = self.statusItem, item.isVisible == hidden else { return }
+                if hidden {
+                    self.popover?.performClose(nil)
+                }
+                item.isVisible = !hidden
             }
-        }
+            .store(in: &cancellables)
     }
 
     @objc private func togglePopover() {
-        guard let button = statusItem?.button, let popover = popover else { return }
-        if popover.isShown {
-            popover.performClose(nil)
-        } else {
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-            NSApp.activate(ignoringOtherApps: true)
-            startEventMonitoring()
+        if popover?.isShown == true {
+            popover?.performClose(nil)
+        } else if Date().timeIntervalSince(lastPopoverClose) > 0.25 {
+            // The same click that closed the transient popover must not reopen it.
+            showPopover()
         }
+    }
+
+    private func showPopover() {
+        guard let button = statusItem?.button, let popover, !popover.isShown else { return }
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        NSApp.activate(ignoringOtherApps: true)
+        startEventMonitoring()
     }
 
     private func startEventMonitoring() {
         stopEventMonitoring()
 
         globalEventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
-            guard let self = self, let popover = self.popover, popover.isShown else { return }
+            guard let popover = self?.popover, popover.isShown else { return }
             DispatchQueue.main.async {
                 popover.performClose(nil)
             }
         }
 
         localEventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
-            guard let self = self, let popover = self.popover, popover.isShown else { return event }
-            if let win = event.window, win != popover.contentViewController?.view.window {
+            guard let self, let popover = self.popover, popover.isShown else { return event }
+            if let window = event.window,
+               window != popover.contentViewController?.view.window,
+               window != self.statusItem?.button?.window {
                 popover.performClose(nil)
             }
             return event
@@ -158,87 +211,76 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     private func stopEventMonitoring() {
-        if let g = globalEventMonitor {
-            NSEvent.removeMonitor(g)
+        if let monitor = globalEventMonitor {
+            NSEvent.removeMonitor(monitor)
             globalEventMonitor = nil
         }
-        if let l = localEventMonitor {
-            NSEvent.removeMonitor(l)
+        if let monitor = localEventMonitor {
+            NSEvent.removeMonitor(monitor)
             localEventMonitor = nil
         }
     }
 
     func popoverDidClose(_ notification: Notification) {
+        lastPopoverClose = Date()
         stopEventMonitoring()
+    }
+
+    // MARK: - Accessibility
+
+    private func setupPermissionHandling() {
+        if !interceptor.refreshPermissionStatus() {
+            interceptor.promptForAccessibilityPermission()
+        }
+        syncInterceptorWithPermission()
+
+        // Posted whenever any app's Accessibility access changes. TCC updates slightly
+        // after the notification, hence the delay.
+        DistributedNotificationCenter.default().addObserver(
+            forName: NSNotification.Name("com.apple.accessibility.api"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                self?.syncInterceptorWithPermission()
+            }
+        }
+    }
+
+    // Revoking access kills the tap silently, so it is dropped and recreated on re-grant.
+    // Polling only runs while access is missing.
+    private func syncInterceptorWithPermission() {
+        let granted = interceptor.refreshPermissionStatus()
+        if granted && !interceptor.isRunning {
+            interceptor.start()
+        } else if !granted && interceptor.isRunning {
+            interceptor.stop()
+        }
+
+        if granted {
+            permissionTimer?.invalidate()
+            permissionTimer = nil
+        } else if permissionTimer == nil {
+            let timer = Timer(timeInterval: 2.0, repeats: true) { [weak self] _ in
+                self?.syncInterceptorWithPermission()
+            }
+            timer.tolerance = 0.5
+            RunLoop.main.add(timer, forMode: .common)
+            permissionTimer = timer
+        }
     }
 
     // MARK: - Autostart
 
     private func configureAutostart() {
         let defaults = UserDefaults.standard
-        let configuredKey = "cmdx.autostart.configured"
-        guard !defaults.bool(forKey: configuredKey) else { return }
+        guard !defaults.bool(forKey: Preferences.autostartConfigured) else { return }
 
-        if #available(macOS 13.0, *) {
-            do {
-                try SMAppService.mainApp.register()
-            } catch {
-                setLaunchAtLogin(enabled: true)
-            }
-        } else {
-            setLaunchAtLogin(enabled: true)
+        do {
+            try SMAppService.mainApp.register()
+        } catch {
+            NSLog("cmdX: failed to register login item - \(error.localizedDescription)")
         }
-        defaults.set(true, forKey: "cmdx.autostart.enabled")
-        defaults.set(true, forKey: configuredKey)
-    }
-
-    // MARK: - Update checking
-
-    private func setupUpdateChecking() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
-            if !granted {
-                print("DEBUG: Notification permission denied: \(error?.localizedDescription ?? "unknown")")
-            }
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
-            self?.updateChecker.checkForUpdates()
-        }
-
-        Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { [weak self] _ in
-            self?.updateChecker.checkForUpdates()
-        }
-    }
-
-    // MARK: - Launch at login fallback (pre-macOS 13)
-
-    private var bundleIdentifier: String {
-        Bundle.main.bundleIdentifier ?? "com.yonn2222.cmdX"
-    }
-
-    private func launchAgentPlistPath() -> URL {
-        let fm = FileManager.default
-        let agents = fm.homeDirectoryForCurrentUser.appendingPathComponent("Library/LaunchAgents")
-        try? fm.createDirectory(at: agents, withIntermediateDirectories: true, attributes: nil)
-        return agents.appendingPathComponent("\(bundleIdentifier).loginitem.plist")
-    }
-
-    private func setLaunchAtLogin(enabled: Bool) {
-        let fm = FileManager.default
-        let plistURL = launchAgentPlistPath()
-        if enabled {
-            let executable = (Bundle.main.infoDictionary?["CFBundleExecutable"] as? String) ?? "cmdX"
-            let exePath = Bundle.main.bundlePath + "/Contents/MacOS/" + executable
-            let dict: [String: Any] = [
-                "Label": bundleIdentifier,
-                "ProgramArguments": [exePath],
-                "RunAtLoad": true
-            ]
-            if let data = try? PropertyListSerialization.data(fromPropertyList: dict, format: .xml, options: 0) {
-                try? data.write(to: plistURL)
-            }
-        } else {
-            try? fm.removeItem(at: plistURL)
-        }
+        defaults.set(true, forKey: Preferences.autostartConfigured)
     }
 }
