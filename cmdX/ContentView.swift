@@ -11,158 +11,155 @@ struct ContentView: View {
     @EnvironmentObject var keyInterceptor: KeyInterceptor
     @EnvironmentObject var updateChecker: UpdateChecker
 
-    @State private var autoLaunch: Bool = false
-    @State private var checkForUpdatesAutomatically: Bool = true
+    @AppStorage(Preferences.hideMenuBarIcon) private var hideMenuBarIcon = false
+    @State private var launchAtLogin = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .center, spacing: 12) {
                 Image(nsImage: NSApplication.shared.applicationIconImage)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 40, height: 40)
-                    .cornerRadius(8)
                     .accessibilityHidden(true)
 
-                Text("cmdX")
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundColor(.primary)
-                    .accessibilityLabel("App name: cmdX")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("cmdX")
+                        .font(.system(size: 22, weight: .semibold))
+                    Text("Version \(appVersion)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Text("Cut and move files in Finder with familiar shortcuts: press Command-X to mark files, then Command-V to move them.")
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            VStack(alignment: .leading, spacing: 12) {
-                Button(action: openAccessibilitySettings) {
-                    Text("Open Accessibility Settings")
-                }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
-                .help("Grant Accessibility permission so cmdX can listen for shortcuts and trigger Move in Finder.")
+            permissionStatusView
 
-                Toggle(isOn: $autoLaunch) {
-                    Text("Start automatically on launch")
+            VStack(alignment: .leading, spacing: 10) {
+                Toggle("Start automatically at login", isOn: $launchAtLogin)
+                    .onChange(of: launchAtLogin) { _, enabled in
+                        setLaunchAtLogin(enabled)
+                    }
+                    .help("Start cmdX when you log in to your Mac.")
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Toggle("Hide menu bar icon", isOn: $hideMenuBarIcon)
+                    Text("cmdX keeps running. Open cmdX again from Applications or Spotlight to show the icon.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.leading, 20)
                 }
-                .toggleStyle(.checkbox)
-                .onChange(of: autoLaunch) { newValue in
-                    if #available(macOS 13.0, *) {
-                        do {
-                            if newValue {
-                                try SMAppService.mainApp.register()
-                            } else {
-                                try SMAppService.mainApp.unregister()
-                            }
-                            UserDefaults.standard.set(newValue, forKey: "cmdx.autostart.enabled")
-                        } catch {
-                            autoLaunch = !newValue
-                            NSLog("cmdX: Failed to update Login Item: \(error.localizedDescription)")
-                        }
-                    } else {
-                        setLaunchAtLogin(enabled: newValue)
-                        UserDefaults.standard.set(newValue, forKey: "cmdx.autostart.enabled")
+
+                Picker("Check for updates", selection: $updateChecker.frequency) {
+                    ForEach(UpdateCheckFrequency.allCases) { frequency in
+                        Text(frequency.title).tag(frequency)
                     }
                 }
-                .help("Start cmdX when you log in to your Mac.")
-
-                Toggle(isOn: $checkForUpdatesAutomatically) {
-                    Text("Check for updates automatically")
-                }
-                .toggleStyle(.checkbox)
-                .onChange(of: checkForUpdatesAutomatically) { newValue in
-                    UserDefaults.standard.set(newValue, forKey: UpdateChecker.checkForUpdatesEnabledKey)
-                }
-                .help("Look for new cmdX releases in the background. You can still search for updates manually below.")
+                .fixedSize()
+                .help("How often cmdX looks for new releases on GitHub.")
             }
+            .toggleStyle(.checkbox)
 
             Divider()
 
             HStack(spacing: 12) {
-                Button("Search for Updates") {
+                Button("Check for Updates Now") {
                     updateChecker.checkForUpdates(manualCheck: true)
                 }
-                
-                Button("Quit") {
+
+                Spacer()
+
+                Button("Quit cmdX") {
                     NSApplication.shared.terminate(nil)
                 }
                 .keyboardShortcut("q")
             }
         }
         .padding()
-        .frame(width: 520, height: 280)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .frame(width: 440)
         .onAppear {
-            if #available(macOS 13.0, *) {
-                if UserDefaults.standard.object(forKey: "cmdx.autostart.enabled") != nil {
-                    autoLaunch = UserDefaults.standard.bool(forKey: "cmdx.autostart.enabled")
-                } else {
-                    autoLaunch = (SMAppService.mainApp.status == .enabled)
-                }
-            } else {
-                if UserDefaults.standard.object(forKey: "cmdx.autostart.enabled") != nil {
-                    autoLaunch = UserDefaults.standard.bool(forKey: "cmdx.autostart.enabled")
-                } else {
-                    autoLaunch = isLoginItemInstalled()
-                }
-            }
-
-            if UserDefaults.standard.object(forKey: UpdateChecker.checkForUpdatesEnabledKey) != nil {
-                checkForUpdatesAutomatically = UserDefaults.standard.bool(forKey: UpdateChecker.checkForUpdatesEnabledKey)
-            }
+            keyInterceptor.refreshPermissionStatus()
+            launchAtLogin = isLaunchAtLoginEnabled
         }
     }
 
+    private var permissionStatusView: some View {
+        let granted = keyInterceptor.hasAccessibilityPermission
+        let tint: Color = granted ? .green : .orange
+
+        return HStack(spacing: 10) {
+            Image(systemName: granted ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                .font(.title2)
+                .foregroundStyle(tint)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(granted ? "Accessibility access granted" : "Accessibility access needed")
+                    .font(.subheadline.weight(.semibold))
+                Text(granted
+                     ? "cmdX can handle Command-X and Command-V in Finder."
+                     : "cmdX can't handle shortcuts until you allow it in System Settings.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 8)
+
+            if granted {
+                Button("Settings…", action: openAccessibilitySettings)
+            } else {
+                Button("Grant Access…") {
+                    keyInterceptor.promptForAccessibilityPermission()
+                    openAccessibilitySettings()
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color(nsColor: .controlBackgroundColor)))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(tint.opacity(0.45)))
+        .accessibilityElement(children: .combine)
+    }
+
+    private var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+    }
+
+    private var isLaunchAtLoginEnabled: Bool {
+        let status = SMAppService.mainApp.status
+        return status == .enabled || status == .requiresApproval
+    }
+
+    private func setLaunchAtLogin(_ enabled: Bool) {
+        guard enabled != isLaunchAtLoginEnabled else { return }
+        do {
+            if enabled {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+        } catch {
+            NSLog("cmdX: failed to update login item - \(error.localizedDescription)")
+            launchAtLogin = isLaunchAtLoginEnabled
+        }
+    }
 
     private func openAccessibilitySettings() {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             NSWorkspace.shared.open(url)
         }
     }
-
-    private var bundleIdentifier: String {
-        Bundle.main.bundleIdentifier ?? "com.yonn2222.cmdX"
-    }
-
-    private func launchAgentPlistPath() -> URL {
-        let fm = FileManager.default
-        let agents = fm.homeDirectoryForCurrentUser.appendingPathComponent("Library/LaunchAgents")
-        try? fm.createDirectory(at: agents, withIntermediateDirectories: true, attributes: nil)
-        return agents.appendingPathComponent("\(bundleIdentifier).loginitem.plist")
-    }
-
-    private func isLoginItemInstalled() -> Bool {
-        let path = launchAgentPlistPath().path
-        return FileManager.default.fileExists(atPath: path)
-    }
-
-    private func setLaunchAtLogin(enabled: Bool) {
-        let fm = FileManager.default
-        let plistURL = launchAgentPlistPath()
-        if enabled {
-            let executable = (Bundle.main.infoDictionary?["CFBundleExecutable"] as? String) ?? "cmdX"
-            let exePath = Bundle.main.bundlePath + "/Contents/MacOS/" + executable
-            let dict: [String: Any] = [
-                "Label": bundleIdentifier,
-                "ProgramArguments": [exePath],
-                "RunAtLoad": true
-            ]
-            if let data = try? PropertyListSerialization.data(fromPropertyList: dict, format: .xml, options: 0) {
-                try? data.write(to: plistURL)
-            }
-        } else {
-            try? fm.removeItem(at: plistURL)
-        }
-    }
 }
 
-struct ContentView_Previews: PreviewProvider {
-    static var previews: some View {
-        ContentView()
-            .environmentObject(KeyInterceptor.shared)
-            .environmentObject(UpdateChecker())
-            .frame(width: 520, height: 280)
-    }
+#Preview {
+    ContentView()
+        .environmentObject(KeyInterceptor.shared)
+        .environmentObject(UpdateChecker())
 }
-

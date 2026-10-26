@@ -1,14 +1,18 @@
 import Cocoa
 import Combine
+import ApplicationServices
 
 final class KeyInterceptor: ObservableObject {
     static let shared = KeyInterceptor()
 
     @Published private(set) var isRunning = false
     @Published private(set) var lastActionWasCut = false
+    @Published private(set) var hasAccessibilityPermission: Bool = AXIsProcessTrusted()
 
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
+    private var activityToken: NSObjectProtocol?
+    private var didLogTapFailure = false
 
     private var cutPasteboardState = CutPasteboardState()
 
@@ -19,7 +23,12 @@ final class KeyInterceptor: ObservableObject {
     func start() {
         guard eventTap == nil else { return }
 
-        let mask = CGEventMask(1 << CGEventType.keyDown.rawValue | 1 << CGEventType.flagsChanged.rawValue)
+        guard refreshPermissionStatus() else {
+            NSLog("cmdX: accessibility permission not granted, event tap not started")
+            return
+        }
+
+        let mask = CGEventMask(1 << CGEventType.keyDown.rawValue)
 
         let callback: CGEventTapCallBack = { proxy, type, event, refcon in
             return KeyInterceptor.handleEvent(proxy: proxy, type: type, event: event)
@@ -33,6 +42,8 @@ final class KeyInterceptor: ObservableObject {
                                      userInfo: nil)
 
         guard let eventTap = eventTap else {
+            guard !didLogTapFailure else { return }
+            didLogTapFailure = true
             NSLog("cmdX: failed to create event tap - grant Accessibility access in System Settings > Privacy & Security")
             return
         }
@@ -42,7 +53,38 @@ final class KeyInterceptor: ObservableObject {
             CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
             CGEvent.tapEnable(tap: eventTap, enable: true)
             isRunning = true
+            didLogTapFailure = false
+            beginBackgroundActivity()
             NSLog("cmdX: event tap started")
+        }
+    }
+
+    // Without visible UI macOS puts the app into App Nap, the tap callback then times out
+    // and the system disables the tap. Idle system sleep stays allowed.
+    private func beginBackgroundActivity() {
+        guard activityToken == nil else { return }
+        activityToken = ProcessInfo.processInfo.beginActivity(
+            options: [.userInitiatedAllowingIdleSystemSleep, .suddenTerminationDisabled, .automaticTerminationDisabled],
+            reason: "cmdX intercepts Finder shortcuts and has to stay responsive without visible UI"
+        )
+    }
+
+    @discardableResult
+    func refreshPermissionStatus() -> Bool {
+        let trusted = AXIsProcessTrusted()
+        if trusted != hasAccessibilityPermission {
+            hasAccessibilityPermission = trusted
+        }
+        return trusted
+    }
+
+    // The system dialog only appears while access is undecided.
+    func promptForAccessibilityPermission() {
+        let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
+        let options = [key: true] as CFDictionary
+        let trusted = AXIsProcessTrustedWithOptions(options)
+        if trusted != hasAccessibilityPermission {
+            hasAccessibilityPermission = trusted
         }
     }
 
@@ -57,6 +99,10 @@ final class KeyInterceptor: ObservableObject {
         eventTap = nil
         isRunning = false
         cancelCut()
+        if let token = activityToken {
+            ProcessInfo.processInfo.endActivity(token)
+            activityToken = nil
+        }
         NSLog("cmdX: event tap stopped")
     }
 
@@ -69,15 +115,8 @@ final class KeyInterceptor: ObservableObject {
             return nil
         }
 
+        // Cheapest checks first: this runs for every keystroke system-wide.
         guard type == .keyDown else {
-            return Unmanaged.passUnretained(event)
-        }
-
-        if event.getIntegerValueField(.eventSourceUserData) == syntheticMarker {
-            return Unmanaged.passUnretained(event)
-        }
-
-        guard isFrontmostAppFinder() else {
             return Unmanaged.passUnretained(event)
         }
 
@@ -88,7 +127,14 @@ final class KeyInterceptor: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
 
-        switch CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode)) {
+        let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
+        guard keyCode == Keycode.x || keyCode == Keycode.c || keyCode == Keycode.v,
+              event.getIntegerValueField(.eventSourceUserData) != syntheticMarker,
+              isFrontmostAppFinder() else {
+            return Unmanaged.passUnretained(event)
+        }
+
+        switch keyCode {
         case Keycode.x:
             shared.beginCut()
             postShortcut(keyCode: Keycode.c, flags: [.maskCommand])
