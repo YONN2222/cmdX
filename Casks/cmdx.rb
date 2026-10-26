@@ -1,6 +1,6 @@
 cask "cmdx" do
-  version "1.5.2"
-  sha256 "05e27cadc05b804afe42d162d6fa0d314f3246dc768740c39a195f58a4d9b97e"
+  version "1.6.1"
+  sha256 "307f27f1cfdd415f6fe9455fff1a6926fc4491169f4749884e7902fa23273ae3"
 
   url "https://github.com/YONN2222/cmdX/releases/download/#{version}/cmdX-#{version}.dmg"
   name "cmdX"
@@ -16,11 +16,20 @@ cask "cmdx" do
 
   app "cmdX.app"
 
-  postflight do
-    app_path = appdir/"cmdX.app"
-    next unless app_path.exist?
-    system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", app_path]
+  postflight_steps do
+    if_path_exists "{{appdir}}/cmdX.app" do
+      run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{appdir}}/cmdX.app"]
+    end
   end
+
+  uninstall quit: "com.yonn2222.cmdX"
+
+  zap trash: [
+    "~/Library/Caches/com.yonn2222.cmdX",
+    "~/Library/HTTPStorages/com.yonn2222.cmdX",
+    "~/Library/LaunchAgents/com.yonn2222.cmdX.loginitem.plist",
+    "~/Library/Preferences/com.yonn2222.cmdX.plist",
+  ]
 
   caveats <<~EOS
     cmdX needs Accessibility permission under System Settings → Privacy & Security → Accessibility.
