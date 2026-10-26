@@ -39,15 +39,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var visibilityObservation: NSKeyValueObservation?
     private var permissionTimer: Timer?
 
+    private static let showSettingsNotification = Notification.Name("com.yonn2222.cmdX.showSettings")
+
     func applicationDidFinishLaunching(_ notification: Notification) {
-        if let bundleID = Bundle.main.bundleIdentifier {
-            let ownPID = ProcessInfo.processInfo.processIdentifier
-            let alreadyRunning = NSWorkspace.shared.runningApplications.contains {
-                $0.bundleIdentifier == bundleID && $0.processIdentifier != ownPID
-            }
-            if alreadyRunning {
+        if isAnotherInstanceRunning {
+            // Another copy (e.g. a second install picked by Spotlight) is already running,
+            // let it show its settings instead of silently doing nothing.
+            DistributedNotificationCenter.default().postNotificationName(
+                Self.showSettingsNotification, object: nil, userInfo: nil, deliverImmediately: true
+            )
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                 exit(0)
             }
+            return
         }
 
         NSApp.setActivationPolicy(.accessory)
@@ -59,6 +63,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         setupPermissionHandling()
         configureAutostart()
         updateChecker.start()
+
+        DistributedNotificationCenter.default().addObserver(
+            forName: Self.showSettingsNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.revealSettings()
+        }
+    }
+
+    private var isAnotherInstanceRunning: Bool {
+        guard let bundleID = Bundle.main.bundleIdentifier else { return false }
+        let ownPID = ProcessInfo.processInfo.processIdentifier
+        return NSWorkspace.shared.runningApplications.contains {
+            $0.bundleIdentifier == bundleID && $0.processIdentifier != ownPID
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -67,6 +85,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     // Opening cmdX again while it runs is the way back to the settings when the icon is hidden.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        revealSettings()
+        return false
+    }
+
+    private func revealSettings() {
         UserDefaults.standard.set(false, forKey: Preferences.hideMenuBarIcon)
         statusItem?.isVisible = true
         // Give the menu bar time to place the item. If macOS keeps it hidden
@@ -79,7 +102,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 self.showSettingsWindow()
             }
         }
-        return false
     }
 
     // MARK: - Menu bar item
