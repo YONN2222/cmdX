@@ -34,6 +34,9 @@ cmdX lives in the menu bar, listens only for shortcuts while Finder is frontmost
 - **Cmd + X / Cmd + V for files**: cut in Finder, paste to move, exactly like you'd expect from any other app.
 - **Native integration**: works directly inside Finder, no extra windows or extensions to manage.
 - **Lightweight**: runs quietly in the menu bar without slowing down your Mac.
+- **Hideable menu bar icon**: hide the icon and cmdX keeps working in the background. Open cmdX again from Applications or Spotlight to get it back.
+- **Your update schedule**: check for updates hourly, daily, weekly or never.
+- **Permission status at a glance**: the menu shows whether Accessibility access is granted and starts working the moment you allow it, no relaunch needed.
 - **Private by design**: no tracking, no analytics, no data collection. Your files never leave your Mac.
 - **Universal binary**: native performance on both Apple Silicon and Intel Macs.
 
@@ -47,7 +50,7 @@ Grab the latest build directly from the releases page:
 
 **Via Homebrew (official)**
 
-There is also a official Homebrew tap. It's kept in sync with GitHub Releases automatically, so `brew upgrade` always finds the latest version:
+There is also an official Homebrew tap. It's kept in sync with GitHub Releases automatically, so `brew upgrade` always finds the latest version:
 
 ```sh
 brew tap YONN2222/cmdx https://github.com/YONN2222/cmdX
@@ -93,18 +96,17 @@ There's also a community-maintained tap by [thedavidwenk](https://github.com/the
 |-----------|-----------------------------------------------------------------|
 | App       | Swift + AppKit/SwiftUI, targeting macOS 14+                     |
 | Shortcuts | `CGEventTap` on the Finder process, no global hooks elsewhere   |
-| Menu bar  | SwiftUI `MenuBarExtra`, no Dock icon (`LSUIElement`)            |
+| Menu bar  | AppKit `NSStatusItem` + SwiftUI popover, no Dock icon (`LSUIElement`) |
 
 ### Repository Structure
 
 ```text
 cmdX/
 ├── cmdX/
-│   ├── cmdXApp.swift        # App entry point, menu bar scene
+│   ├── cmdXApp.swift        # App entry point, status item, permissions, autostart
 │   ├── ContentView.swift    # Settings popover UI
 │   ├── KeyInterceptor.swift # Cmd+X / Cmd+V event tap for Finder
-│   ├── UpdateChecker.swift  # GitHub Releases update check
-│   └── WindowAccessor.swift
+│   └── UpdateChecker.swift  # GitHub Releases update check
 ├── website/                 # cmdx website (static HTML/CSS/JS, no external requests)
 └── assets/                  # Images used in this README
 ```
