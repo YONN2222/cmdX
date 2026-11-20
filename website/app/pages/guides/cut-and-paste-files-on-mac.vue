@@ -60,6 +60,14 @@ const comparison = [
         </p>
       </div>
 
+      <h2>Why doesn't Command-X work in Finder?</h2>
+      <p>
+        In Finder, Cut only works for text, for example while you rename a file. When files are selected, the Cut item in
+        the Edit menu is grayed out and <MacKey name="command" /> <MacKey name="X" /> does nothing. Apple chose a
+        "copy first, decide later" model instead: you copy the files and pick at paste time whether they are copied or moved.
+        It is not a bug in your Mac, and there is no hidden setting to turn it on. The methods below are the ways around it.
+      </p>
+
       <h2>Method 1: The hidden Finder shortcut</h2>
       <ol>
         <li>Select one or more files in Finder.</li>
