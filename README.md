@@ -5,6 +5,8 @@
 
   <p><strong>The missing Cmd + X for macOS Finder.</strong></p>
 
+  <p>Website and download: <a href="https://cmdx.yonn.online"><strong>cmdx.yonn.online</strong></a></p>
+
   <p>
     <img src="https://img.shields.io/badge/Swift-F05138?style=for-the-badge&logo=swift&logoColor=white" alt="Swift" />
     <img src="https://img.shields.io/badge/SwiftUI-0066CC?style=for-the-badge&logo=swift&logoColor=white" alt="SwiftUI" />
@@ -107,7 +109,7 @@ cmdX/
 │   ├── ContentView.swift    # Settings popover UI
 │   ├── KeyInterceptor.swift # Cmd+X / Cmd+V event tap for Finder
 │   └── UpdateChecker.swift  # GitHub Releases update check
-├── website/                 # cmdx website (static HTML/CSS/JS, no external requests)
+├── website/                 # cmdx.yonn.online (Nuxt app on Cloudflare Workers)
 └── assets/                  # Images used in this README
 ```
 

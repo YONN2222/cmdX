@@ -48,9 +48,14 @@ const { playClick } = useSounds()
       <p class="mt-6 text-sm text-dimmed">
         &copy; {{ year }} cmdX. Made for everyone who misses Command-X in Finder.
       </p>
-      <NuxtLink to="/privacy" class="mt-2 text-sm font-medium text-dimmed underline-offset-4 hover:text-highlighted hover:underline">
-        Privacy Policy
-      </NuxtLink>
+      <div class="mt-2 flex gap-5 text-sm font-medium text-dimmed">
+        <NuxtLink to="/guides/cut-and-paste-files-on-mac" class="underline-offset-4 hover:text-highlighted hover:underline">
+          How to cut and paste files on a Mac
+        </NuxtLink>
+        <NuxtLink to="/privacy" class="underline-offset-4 hover:text-highlighted hover:underline">
+          Privacy Policy
+        </NuxtLink>
+      </div>
     </UContainer>
   </footer>
 </template>

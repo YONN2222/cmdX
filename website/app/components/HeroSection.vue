@@ -110,9 +110,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
         <p class="enter mt-6 font-mono text-xs text-dimmed [--enter-delay:450ms]">
           <template v-if="stats">
             <CountUp :key="stats.downloads" :to="stats.downloads" separator="," :duration="1.4" trigger="view" class-name="font-semibold text-muted" />
-            downloads<span class="sr-only"> ({{ stats.downloads }})</span> /
+            downloads<span class="sr-only"> ({{ stats.downloads }})</span> so far.
           </template>
-          macOS 14 or later / Apple Silicon &amp; Intel
+          Runs on Apple Silicon and Intel Macs with macOS 14 or later.
         </p>
       </div>
 

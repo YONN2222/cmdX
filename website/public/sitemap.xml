@@ -6,6 +6,11 @@
     <priority>1.0</priority>
   </url>
   <url>
+    <loc>https://cmdx.yonn.online/guides/cut-and-paste-files-on-mac</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://cmdx.yonn.online/changelog</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>

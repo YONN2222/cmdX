@@ -4,7 +4,7 @@ defineProps<{ letter: string }>()
 
 <template>
   <span class="inline-flex items-center gap-0.5 align-middle">
-    <UKbd><UIcon name="i-lucide-command" class="size-3" /></UKbd>
-    <UKbd :value="letter" />
+    <MacKey name="command" />
+    <MacKey :name="letter" />
   </span>
 </template>
