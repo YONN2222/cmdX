@@ -15,6 +15,7 @@ final class KeyInterceptor: ObservableObject {
     private var didLogTapFailure = false
 
     private var cutPasteboardState = CutPasteboardState()
+    private var cutGeneration = 0
 
     fileprivate static let syntheticMarker: Int64 = 0x636D_6458
 
@@ -160,6 +161,24 @@ final class KeyInterceptor: ObservableObject {
     private func beginCut() {
         cutPasteboardState.begin(currentChangeCount: NSPasteboard.general.changeCount)
         publishCutState(true)
+        cutGeneration &+= 1
+        if UserDefaults.standard.bool(forKey: Preferences.cutSoundEnabled) {
+            playSoundOnceCopied(generation: cutGeneration)
+        }
+    }
+
+    // Finder writes the pasteboard asynchronously after the synthetic Cmd-C, so poll briefly.
+    // Nothing selected means no pasteboard change and therefore no sound.
+    // A newer cut invalidates older pollers so the sound never plays twice.
+    private func playSoundOnceCopied(generation: Int, attempt: Int = 0) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            guard let self, generation == self.cutGeneration else { return }
+            if self.cutPasteboardState.isCopied(currentChangeCount: NSPasteboard.general.changeCount) {
+                CutSound.play()
+            } else if attempt < 10 {
+                self.playSoundOnceCopied(generation: generation, attempt: attempt + 1)
+            }
+        }
     }
 
     private func cancelCut() {
@@ -192,6 +211,10 @@ struct CutPasteboardState {
 
     mutating func cancel() {
         expectedChangeCount = nil
+    }
+
+    func isCopied(currentChangeCount: Int) -> Bool {
+        expectedChangeCount == currentChangeCount
     }
 
     mutating func consume(currentChangeCount: Int) -> Bool {
