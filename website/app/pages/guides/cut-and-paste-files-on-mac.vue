@@ -197,8 +197,8 @@ const comparison = [
   margin-top: 0.4rem;
 }
 
-.guide a,
-.guide :deep(a) {
+.guide a:not(.btn-key),
+.guide :deep(a:not(.btn-key)) {
   color: var(--ui-text-highlighted);
   font-weight: 600;
   text-decoration: underline;
