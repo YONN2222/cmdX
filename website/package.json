@@ -1,0 +1,27 @@
+{
+  "name": "website",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "@iconify-json/lucide": "^1.2.157",
+    "@iconify-json/simple-icons": "^1.2.103",
+    "@nuxt/ui": "^4.13.0",
+    "gsap": "^3.15.1",
+    "motion-v": "^1.10.2",
+    "nuxt": "^4.6.4",
+    "nuxt-umami-plugin": "^0.1.2",
+    "tailwindcss": "^4.3.5",
+    "vue": "^3.5.45",
+    "vue-router": "^5.4.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.166.0"
+  }
+}

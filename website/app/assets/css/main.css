@@ -1,0 +1,107 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+@theme static {
+  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Nunito", "Geist", ui-sans-serif, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --color-brand-50: #f5f4fd;
+  --color-brand-100: #ebe9fa;
+  --color-brand-200: #d8d4f4;
+  --color-brand-300: #bbb4ea;
+  --color-brand-400: #9c93dd;
+  --color-brand-500: #8177cf;
+  --color-brand-600: #6b60bb;
+  --color-brand-700: #574d9c;
+  --color-brand-800: #463f7c;
+  --color-brand-900: #3a3564;
+  --color-brand-950: #23203d;
+
+  --color-mint: #dcefda;
+  --color-lilac: #e2dff6;
+  --color-paper: #f7f7f4;
+  --color-paper-deep: #eeeee9;
+  --color-ink: #1d1d1f;
+}
+
+:root {
+  --ui-bg: var(--color-paper);
+  --ui-bg-muted: var(--color-paper-deep);
+  --ui-bg-elevated: #ffffff;
+  --ui-text-highlighted: var(--color-ink);
+  --ui-text: #2c2c2e;
+  --ui-text-muted: #5c5c63;
+  --ui-text-dimmed: #77777e;
+  --ui-border: rgb(29 29 31 / 0.12);
+  --icon-gradient: linear-gradient(160deg, var(--color-mint), var(--color-lilac));
+}
+
+html {
+  scroll-behavior: smooth;
+  background: var(--color-paper);
+  scrollbar-color: #cfcfca var(--color-paper);
+}
+
+::selection {
+  background: var(--color-brand-200);
+  color: var(--color-ink);
+}
+
+:focus-visible {
+  outline: 2px dashed var(--color-brand-500);
+  outline-offset: 3px;
+}
+
+.enter {
+  animation: enter-rise 0.6s var(--enter-delay, 0s) cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes enter-rise {
+  from {
+    opacity: 0;
+    transform: translateY(28px) rotate(1.5deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .enter {
+    animation: none;
+  }
+}
+
+.btn-key {
+  @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-[#232326] px-6 py-3.5 font-display text-lg font-extrabold text-white;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.12),
+    0 4px 0 #0b0b0c,
+    0 16px 28px -12px rgb(29 29 31 / 0.5);
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.btn-key:hover {
+  background: #303034;
+  transform: translateY(-1px);
+}
+
+.btn-key:active {
+  transform: translateY(3px);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.12),
+    0 1px 0 #0b0b0c,
+    0 6px 12px -8px rgb(29 29 31 / 0.5);
+}
+
+.btn-soft {
+  @apply inline-flex items-center justify-center gap-2.5 rounded-2xl bg-paper-deep px-5 py-3.5 font-display text-lg font-extrabold text-highlighted;
+  transition: background-color 0.15s ease, transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-soft:hover {
+  background: #e4e4de;
+}
+
+.btn-soft:active {
+  transform: scale(0.97);
+}
+
