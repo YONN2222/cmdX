@@ -23,6 +23,23 @@ struct cmdXApp: App {
 enum Preferences {
     static let hideMenuBarIcon = "cmdx.menuBarIcon.hidden"
     static let autostartConfigured = "cmdx.autostart.configured"
+    static let cutSoundEnabled = "cmdx.cutSound.enabled"
+    static let cutSoundName = "cmdx.cutSound.name"
+}
+
+enum CutSound {
+    static let defaultName = "Pop"
+    // System alert sounds shipped in /System/Library/Sounds.
+    static let names = ["Basso", "Blow", "Bottle", "Frog", "Funk", "Glass", "Hero",
+                        "Morse", "Ping", "Pop", "Purr", "Sosumi", "Submarine", "Tink"]
+
+    static var selectedName: String {
+        UserDefaults.standard.string(forKey: Preferences.cutSoundName) ?? defaultName
+    }
+
+    static func play(_ name: String = selectedName) {
+        NSSound(named: name)?.play()
+    }
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {

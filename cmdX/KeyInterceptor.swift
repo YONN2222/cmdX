@@ -15,6 +15,7 @@ final class KeyInterceptor: ObservableObject {
     private var didLogTapFailure = false
 
     private var cutPasteboardState = CutPasteboardState()
+    private var cutGeneration = 0
 
     fileprivate static let syntheticMarker: Int64 = 0x636D_6458
 
@@ -130,7 +131,8 @@ final class KeyInterceptor: ObservableObject {
         let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
         guard keyCode == Keycode.x || keyCode == Keycode.c || keyCode == Keycode.v,
               event.getIntegerValueField(.eventSourceUserData) != syntheticMarker,
-              isFrontmostAppFinder() else {
+              let finder = frontmostFinder(),
+              !isEditingText(in: finder) else {
             return Unmanaged.passUnretained(event)
         }
 
@@ -159,6 +161,24 @@ final class KeyInterceptor: ObservableObject {
     private func beginCut() {
         cutPasteboardState.begin(currentChangeCount: NSPasteboard.general.changeCount)
         publishCutState(true)
+        cutGeneration &+= 1
+        if UserDefaults.standard.bool(forKey: Preferences.cutSoundEnabled) {
+            playSoundOnceCopied(generation: cutGeneration)
+        }
+    }
+
+    // Finder writes the pasteboard asynchronously after the synthetic Cmd-C, so poll briefly.
+    // Nothing selected means no pasteboard change and therefore no sound.
+    // A newer cut invalidates older pollers so the sound never plays twice.
+    private func playSoundOnceCopied(generation: Int, attempt: Int = 0) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            guard let self, generation == self.cutGeneration else { return }
+            if self.cutPasteboardState.isCopied(currentChangeCount: NSPasteboard.general.changeCount) {
+                CutSound.play()
+            } else if attempt < 10 {
+                self.playSoundOnceCopied(generation: generation, attempt: attempt + 1)
+            }
+        }
     }
 
     private func cancelCut() {
@@ -193,6 +213,10 @@ struct CutPasteboardState {
         expectedChangeCount = nil
     }
 
+    func isCopied(currentChangeCount: Int) -> Bool {
+        expectedChangeCount == currentChangeCount
+    }
+
     mutating func consume(currentChangeCount: Int) -> Bool {
         defer { cancel() }
         return expectedChangeCount == currentChangeCount
@@ -205,11 +229,44 @@ private enum Keycode {
     static let v: CGKeyCode = 9
 }
 
-private func isFrontmostAppFinder() -> Bool {
-    if let front = NSWorkspace.shared.frontmostApplication {
-        return front.bundleIdentifier == "com.apple.finder"
+private func frontmostFinder() -> NSRunningApplication? {
+    guard let front = NSWorkspace.shared.frontmostApplication,
+          front.bundleIdentifier == "com.apple.finder" else { return nil }
+    return front
+}
+
+private let editableTextRoles: Set<String> = [
+    kAXTextFieldRole as String,
+    kAXTextAreaRole as String,
+    kAXComboBoxRole as String
+]
+
+// Rename and search fields must keep the native text Cut/Copy/Paste.
+// Short timeout because this runs inside the event tap callback.
+private func isEditingText(in app: NSRunningApplication) -> Bool {
+    let appElement = AXUIElementCreateApplication(app.processIdentifier)
+    AXUIElementSetMessagingTimeout(appElement, 0.1)
+
+    var focusedValue: CFTypeRef?
+    let result = AXUIElementCopyAttributeValue(appElement, kAXFocusedUIElementAttribute as CFString, &focusedValue)
+    // Finder too busy to answer: leave the shortcut alone rather than risk eating a text cut.
+    if result == .cannotComplete { return true }
+    guard result == .success,
+          let focusedValue, CFGetTypeID(focusedValue) == AXUIElementGetTypeID() else {
+        return false
     }
-    return false
+    let focused = focusedValue as! AXUIElement
+    AXUIElementSetMessagingTimeout(focused, 0.1)
+
+    var roleValue: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(focused, kAXRoleAttribute as CFString, &roleValue) == .success,
+          let role = roleValue as? String, editableTextRoles.contains(role) else {
+        return false
+    }
+
+    var settable = DarwinBoolean(false)
+    return AXUIElementIsAttributeSettable(focused, kAXValueAttribute as CFString, &settable) == .success
+        && settable.boolValue
 }
 
 private func postShortcut(keyCode: CGKeyCode, flags: CGEventFlags) {

@@ -12,6 +12,8 @@ struct ContentView: View {
     @EnvironmentObject var updateChecker: UpdateChecker
 
     @AppStorage(Preferences.hideMenuBarIcon) private var hideMenuBarIcon = false
+    @AppStorage(Preferences.cutSoundEnabled) private var cutSoundEnabled = false
+    @AppStorage(Preferences.cutSoundName) private var cutSoundName = CutSound.defaultName
     @State private var launchAtLogin = false
 
     var body: some View {
@@ -45,6 +47,26 @@ struct ContentView: View {
                         setLaunchAtLogin(enabled)
                     }
                     .help("Start cmdX when you log in to your Mac.")
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Toggle("Play sound when files are cut", isOn: $cutSoundEnabled)
+                        .onChange(of: cutSoundEnabled) { _, enabled in
+                            if enabled { CutSound.play(cutSoundName) }
+                        }
+                        .help("Plays a short sound once Command-X has copied the selected files.")
+
+                    Picker("Sound", selection: $cutSoundName) {
+                        ForEach(CutSound.names, id: \.self) { name in
+                            Text(name).tag(name)
+                        }
+                    }
+                    .fixedSize()
+                    .disabled(!cutSoundEnabled)
+                    .padding(.leading, 20)
+                    .onChange(of: cutSoundName) { _, name in
+                        CutSound.play(name)
+                    }
+                }
 
                 VStack(alignment: .leading, spacing: 2) {
                     Toggle("Hide menu bar icon", isOn: $hideMenuBarIcon)
