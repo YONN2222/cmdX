@@ -39,6 +39,14 @@ useHead({ link: [{ rel: 'canonical', href: `${SITE_URL}/privacy` }] })
         data on our behalf and is certified under the EU-US Data Privacy Framework.
       </p>
 
+      <h2>Cloudflare Web Analytics</h2>
+      <p>
+        Cloudflare also adds its own lightweight analytics script to the website. It measures page views and loading
+        performance without cookies and without fingerprinting, and does not track you across websites. The data is
+        aggregated by Cloudflare and shown to us only as statistics. We rely on our legitimate interest in a fast and
+        reliable website (Art. 6(1)(f) GDPR).
+      </p>
+
       <h2>Analytics with Umami</h2>
       <p>
         We use Umami, a privacy-friendly open source analytics tool that we host ourselves (umami.yonn2222.com). The data

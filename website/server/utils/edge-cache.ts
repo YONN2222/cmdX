@@ -1,23 +1,27 @@
-import type { H3Event } from 'h3'
-
 const CACHE_SECONDS = 3600
+const CACHE_ORIGIN = 'https://cache.cmdx.internal'
 
-export async function edgeCachedJson<T>(event: H3Event, label: string, load: () => Promise<T>): Promise<Response> {
-  const cache = (globalThis as { caches?: { default?: Cache } }).caches?.default
-  const cacheKey = new Request(getRequestURL(event).toString())
+function edgeCache(): Cache | undefined {
+  return (globalThis as { caches?: { default?: Cache } }).caches?.default
+}
+
+export async function edgeCached<T>(key: string, load: () => Promise<T>): Promise<T> {
+  const cache = edgeCache()
+  const cacheKey = new Request(`${CACHE_ORIGIN}/${key}`)
 
   const cached = await cache?.match(cacheKey)
-  if (cached) return cached
+  if (cached) return cached.json() as Promise<T>
 
+  const data = await load()
+  await cache?.put(cacheKey, new Response(JSON.stringify(data), {
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': `public, max-age=${CACHE_SECONDS}` }
+  }))
+  return data
+}
+
+export async function cachedJsonResponse<T>(key: string, label: string, load: () => Promise<T>): Promise<T> {
   try {
-    const response = new Response(JSON.stringify(await load()), {
-      headers: {
-        'Content-Type': 'application/json',
-        'Cache-Control': `public, max-age=${CACHE_SECONDS}`
-      }
-    })
-    await cache?.put(cacheKey, response.clone())
-    return response
+    return await edgeCached(key, load)
   }
   catch (error) {
     console.error(`Failed to load ${label}`, error)

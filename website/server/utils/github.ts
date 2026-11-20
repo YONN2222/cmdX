@@ -58,17 +58,17 @@ function toRelease(release: ApiRelease): Release {
   }
 }
 
-export const fetchReleases = defineCachedFunction(async (): Promise<Release[]> => {
+export async function fetchReleases(): Promise<Release[]> {
   const releases = await $fetch<ApiRelease[]>(`${REPO_API}/releases`, {
     headers: githubHeaders('application/vnd.github.html+json'),
     query: { per_page: 100 }
   })
   return releases.filter(release => !release.draft && !release.prerelease).map(toRelease)
-}, { name: 'github-releases', maxAge: 60 * 60, getKey: () => 'cmdx' })
+}
 
-export const fetchGithubStats = defineCachedFunction(async (): Promise<GithubStats> => {
+export async function fetchGithubStats(): Promise<GithubStats> {
   const [releases, repo] = await Promise.all([
-    fetchReleases(),
+    edgeCached('releases', fetchReleases),
     $fetch<{ stargazers_count: number }>(REPO_API, { headers: githubHeaders('application/vnd.github+json') })
   ])
   const latest = releases[0]
@@ -78,4 +78,4 @@ export const fetchGithubStats = defineCachedFunction(async (): Promise<GithubSta
     version: latest?.version ?? null,
     dmgUrl: latest?.dmgUrl ?? null
   }
-}, { name: 'github-stats', maxAge: 60 * 60, getKey: () => 'cmdx' })
+}

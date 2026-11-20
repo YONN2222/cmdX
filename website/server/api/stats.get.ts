@@ -1,1 +1,1 @@
-export default defineEventHandler(event => edgeCachedJson(event, 'GitHub stats', fetchGithubStats))
+export default defineEventHandler(() => cachedJsonResponse('stats', 'GitHub stats', fetchGithubStats))

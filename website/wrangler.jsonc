@@ -1,14 +1,17 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "cmdx-website",
+  "account_id": "91729e714438236004dcbd6c9fbc0423",
   "main": ".output/server/index.mjs",
   "compatibility_date": "2026-11-01",
   "compatibility_flags": ["nodejs_compat"],
+  "routes": [{ "pattern": "cmdx.yonn.online", "custom_domain": true }],
   "assets": {
     "directory": ".output/public",
     "binding": "ASSETS",
     "run_worker_first": ["/_ux/*", "/api/*", "/download"],
-    "not_found_handling": "404-page"
+    "not_found_handling": "404-page",
+    "html_handling": "drop-trailing-slash"
   },
   "observability": { "enabled": true }
 }
