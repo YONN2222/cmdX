@@ -32,7 +32,8 @@ export default defineNuxtConfig({
   routeRules: {
     '/': { prerender: true },
     '/changelog': { prerender: true },
-    '/privacy': { prerender: true }
+    '/privacy': { prerender: true },
+    '/guides/cut-and-paste-files-on-mac': { prerender: true }
   },
 
   umami: {

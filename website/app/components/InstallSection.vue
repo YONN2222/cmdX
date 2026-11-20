@@ -22,7 +22,7 @@ async function copyCommands() {
 </script>
 
 <template>
-  <section id="install" class="scroll-mt-24 pb-28">
+  <section id="install" class="scroll-mt-24 pb-16 sm:pb-28">
     <UContainer class="flex flex-col items-center text-center">
       <DownloadKey location="install" />
       <p class="mt-4 text-sm text-dimmed">

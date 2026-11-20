@@ -116,13 +116,26 @@ function onKeydown(event: KeyboardEvent) {
   }
 }
 
+const CANVAS_WIDTH = 1080
 const stageRef = ref<HTMLElement>()
+const fitRef = ref<HTMLElement>()
+const scale = ref(1)
 let context: gsap.Context | undefined
+let resizeObserver: ResizeObserver | undefined
+
+function fitToWidth() {
+  if (fitRef.value) scale.value = Math.min(1, fitRef.value.clientWidth / CANVAS_WIDTH)
+}
 
 onMounted(() => {
+  fitToWidth()
+  resizeObserver = new ResizeObserver(fitToWidth)
+  if (fitRef.value) resizeObserver.observe(fitRef.value)
+
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
   gsap.registerPlugin(ScrollTrigger)
   context = gsap.context(() => {
+    if (window.innerWidth < 768) return
     gsap.fromTo('.macbook-lid',
       { rotateX: -55 },
       { rotateX: 0, ease: 'none', scrollTrigger: { trigger: stageRef.value, start: 'top 90%', end: 'top 20%', scrub: 0.6 } }
@@ -134,19 +147,23 @@ onMounted(() => {
   }, stageRef.value)
 })
 
-onBeforeUnmount(() => context?.revert())
+onBeforeUnmount(() => {
+  context?.revert()
+  resizeObserver?.disconnect()
+})
 </script>
 
 <template>
-  <section id="demo" ref="stageRef" class="scroll-mt-24 px-4 pt-6 pb-24" aria-labelledby="demo-heading">
+  <section id="demo" ref="stageRef" class="scroll-mt-24 px-4 pt-2 pb-12 sm:pt-6 sm:pb-24" aria-labelledby="demo-heading">
     <h2 id="demo-heading" class="sr-only">
       Try cmdX right here
     </h2>
 
-    <div class="enter mx-auto max-w-5xl [--enter-delay:550ms] [perspective:2000px]" @keydown="onKeydown">
-      <div class="macbook-lid origin-bottom rounded-t-[22px] bg-[#0d0d0f] p-[1.1%] pb-[1.6%] shadow-[0_0_0_1.5px_#3a3a3e,0_50px_90px_-40px_rgb(26_23_18/0.7)]">
+    <div ref="fitRef" class="enter mx-auto max-w-5xl [--enter-delay:550ms]" @keydown="onKeydown">
+      <div class="mx-auto w-[1080px] [perspective:2000px]" :style="{ zoom: scale }">
+      <div class="macbook-lid mx-[40px] origin-bottom rounded-t-[22px] bg-[#0d0d0f] p-[11px] pb-[16px] shadow-[0_0_0_1.5px_#3a3a3e,0_50px_90px_-40px_rgb(26_23_18/0.7)]">
         <div
-          class="macos-screen relative overflow-hidden rounded-t-[12px] outline-none sm:aspect-[16/10]"
+          class="macos-screen relative aspect-[16/10] overflow-hidden rounded-t-[12px] outline-none"
           tabindex="0"
           aria-label="Interactive cmdX demo. Select files, press Command-X, click the other window and press Command-V."
         >
@@ -158,30 +175,30 @@ onBeforeUnmount(() => context?.revert())
             <span class="flex items-center gap-3.5">
               <UIcon name="i-simple-icons-apple" class="size-3" />
               <span class="font-bold">Finder</span>
-              <span class="hidden sm:inline">File</span>
-              <span class="hidden sm:inline">Edit</span>
-              <span class="hidden sm:inline">View</span>
-              <span class="hidden md:inline">Go</span>
-              <span class="hidden md:inline">Window</span>
-              <span class="hidden md:inline">Help</span>
+              <span>File</span>
+              <span>Edit</span>
+              <span>View</span>
+              <span>Go</span>
+              <span>Window</span>
+              <span>Help</span>
             </span>
             <span class="flex items-center gap-3">
               <img src="/cmdX.png" alt="" width="14" height="14" class="size-3.5 rounded-[3px]">
-              <UIcon name="i-lucide-battery-full" class="hidden size-4 sm:block" />
-              <UIcon name="i-lucide-wifi" class="hidden size-3.5 sm:block" />
+              <UIcon name="i-lucide-battery-full" class="size-4" />
+              <UIcon name="i-lucide-wifi" class="size-3.5" />
               <UIcon name="i-lucide-search" class="size-3" />
               <span class="font-medium">Mon 9:41</span>
             </span>
           </div>
 
-          <div class="relative z-10 flex flex-col gap-4 p-4 sm:block sm:h-[calc(100%-1.5rem)] sm:p-0">
+          <div class="relative z-10 h-[calc(100%-1.5rem)]">
             <FinderWindow
               title="Downloads"
               :files="folders.Downloads"
               :selected="focused === 'Downloads' ? selected : []"
               :cut="clipboard?.from === 'Downloads' ? clipboard.names : []"
               :focused="focused === 'Downloads'"
-              class="sm:absolute sm:top-[7%] sm:left-[5%] sm:w-[56%]"
+              class="absolute top-[7%] left-[5%] w-[56%]"
               :class="focused === 'Downloads' ? 'z-20' : 'z-10'"
               @focus="focusFolder('Downloads')"
               @toggle="name => toggleFile('Downloads', name)"
@@ -192,28 +209,26 @@ onBeforeUnmount(() => context?.revert())
               :selected="focused === 'Projects' ? selected : []"
               :cut="clipboard?.from === 'Projects' ? clipboard.names : []"
               :focused="focused === 'Projects'"
-              class="sm:absolute sm:top-[30%] sm:right-[5%] sm:w-[50%]"
+              class="absolute top-[30%] right-[5%] w-[50%]"
               :class="focused === 'Projects' ? 'z-20' : 'z-10'"
               @focus="focusFolder('Projects')"
               @toggle="name => toggleFile('Projects', name)"
             />
           </div>
 
-          <p class="absolute bottom-[4%] left-1/2 z-30 hidden -translate-x-1/2 items-center gap-2 rounded-full bg-[#1d1d1f]/75 px-4 py-1.5 text-[11px] whitespace-nowrap text-white backdrop-blur-xl sm:flex" aria-live="polite">
+          <p class="absolute bottom-[4%] left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full bg-[#1d1d1f]/75 px-4 py-1.5 text-[11px] whitespace-nowrap text-white backdrop-blur-xl" aria-live="polite">
             <img src="/cmdX.png" alt="" width="14" height="14" class="size-3.5 rounded-[3px]">
             {{ message }}
           </p>
         </div>
       </div>
 
-      <div class="relative mx-[-4%] h-[14px] rounded-b-[14px] bg-[linear-gradient(to_bottom,#e6e6e9,#c4c4c9_55%,#9d9da3)] shadow-[0_18px_30px_-12px_rgb(26_23_18/0.55)] sm:h-[18px]" aria-hidden="true">
+      <div class="relative h-[18px] rounded-b-[14px] bg-[linear-gradient(to_bottom,#e6e6e9,#c4c4c9_55%,#9d9da3)] shadow-[0_18px_30px_-12px_rgb(26_23_18/0.55)]" aria-hidden="true">
         <div class="mx-auto h-[45%] w-[14%] rounded-b-[8px] bg-[linear-gradient(to_bottom,#b9b9be,#d2d2d6)]" />
       </div>
+      </div>
 
-      <div class="mt-12 flex flex-col items-center gap-6">
-        <p class="text-center text-muted sm:hidden" aria-live="polite">
-          {{ message }}
-        </p>
+      <div class="mt-10 flex flex-col items-center gap-6 sm:mt-12">
         <div class="flex items-start gap-5">
           <div v-for="key in demoKeys" :key="key.id" class="flex w-20 flex-col items-center gap-2.5">
             <button

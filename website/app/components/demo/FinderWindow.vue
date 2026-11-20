@@ -35,7 +35,7 @@ const favorites = [
     :class="focused ? 'shadow-[0_22px_50px_-10px_rgb(0_0_0/0.45),0_0_0_0.5px_rgb(0_0_0/0.25)]' : 'shadow-[0_12px_30px_-10px_rgb(0_0_0/0.3),0_0_0_0.5px_rgb(0_0_0/0.18)]'"
     @pointerdown="emit('focus')"
   >
-    <aside class="hidden w-[30%] shrink-0 flex-col bg-[#ecebee]/85 px-2 pt-2.5 pb-3 backdrop-blur-xl sm:flex">
+    <aside class="flex w-[30%] shrink-0 flex-col bg-[#ecebee]/85 px-2 pt-2.5 pb-3 backdrop-blur-xl">
       <div class="flex gap-[6px] px-1.5 pb-3">
         <span class="size-[10px] rounded-full" :class="focused ? 'bg-[#ff5f57]' : 'bg-[#d6d5d8]'" />
         <span class="size-[10px] rounded-full" :class="focused ? 'bg-[#febc2e]' : 'bg-[#d6d5d8]'" />
@@ -64,22 +64,17 @@ const favorites = [
 
     <div class="flex min-w-0 flex-1 flex-col">
       <div class="flex h-10 items-center gap-2 border-b border-black/[0.07] px-3 text-[#1d1d1f]">
-        <div class="flex gap-[6px] sm:hidden">
-          <span class="size-[10px] rounded-full bg-[#ff5f57]" />
-          <span class="size-[10px] rounded-full bg-[#febc2e]" />
-          <span class="size-[10px] rounded-full bg-[#28c840]" />
-        </div>
         <UIcon name="i-lucide-chevron-left" class="size-4 text-[#1d1d1f]/70" />
         <UIcon name="i-lucide-chevron-right" class="size-4 text-[#1d1d1f]/25" />
         <span class="ml-1 truncate text-[12.5px] font-bold">{{ title }}</span>
         <span class="ml-auto flex items-center gap-3 text-[#1d1d1f]/60">
           <UIcon name="i-lucide-layout-grid" class="size-3.5" />
-          <UIcon name="i-lucide-share" class="hidden size-3.5 md:block" />
+          <UIcon name="i-lucide-share" class="size-3.5" />
           <UIcon name="i-lucide-search" class="size-3.5" />
         </span>
       </div>
 
-      <div class="grid min-h-40 flex-1 grid-cols-3 content-start gap-x-1 gap-y-3 p-3 lg:grid-cols-4">
+      <div class="grid min-h-40 flex-1 grid-cols-4 content-start gap-x-1 gap-y-3 p-3">
         <TransitionGroup name="file">
           <button
             v-for="file in files"

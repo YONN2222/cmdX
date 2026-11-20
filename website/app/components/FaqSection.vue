@@ -55,12 +55,12 @@ useHead({
 </script>
 
 <template>
-  <section id="faq" class="scroll-mt-20 bg-paper-deep py-24">
+  <section id="faq" class="scroll-mt-20 bg-paper-deep py-16 sm:py-24">
     <UContainer class="max-w-5xl">
       <h2 class="text-center font-display text-[clamp(2.2rem,5vw,3.6rem)] font-black tracking-[-0.03em] text-highlighted">
         Questions? Answers.
       </h2>
-      <dl class="mt-14 grid gap-x-14 gap-y-10 md:grid-cols-2">
+      <dl class="mt-10 grid gap-x-14 gap-y-8 sm:mt-14 sm:gap-y-10 md:grid-cols-2">
         <div v-for="faq in faqs" :key="faq.label">
           <dt class="font-display text-xl leading-snug font-extrabold text-highlighted">
             {{ faq.label }}
@@ -70,6 +70,14 @@ useHead({
           </dd>
         </div>
       </dl>
+      <NuxtLink
+        to="/guides/cut-and-paste-files-on-mac"
+        class="group mt-14 inline-flex items-center gap-2 font-display text-lg font-extrabold text-highlighted"
+        v-umami="{ name: 'guide-click', location: 'faq' }"
+      >
+        Read the full guide: how to cut and paste files on a Mac
+        <UIcon name="i-lucide-arrow-right" class="size-5 transition-transform duration-200 group-hover:translate-x-1" />
+      </NuxtLink>
     </UContainer>
   </section>
 </template>

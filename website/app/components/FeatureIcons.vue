@@ -12,21 +12,21 @@ const features = [
 </script>
 
 <template>
-  <section id="features" class="scroll-mt-24 py-28">
+  <section id="features" class="scroll-mt-24 py-16 sm:py-28">
     <UContainer class="max-w-6xl">
       <h2 class="max-w-xl font-display text-[clamp(2.4rem,5.5vw,4rem)] leading-[1.02] font-black tracking-[-0.035em] text-highlighted">
         Small app.<br>One job. Done right.
       </h2>
 
-      <ul class="mt-16 grid grid-cols-1 gap-x-10 gap-y-12 sm:grid-cols-2 lg:grid-cols-4">
+      <ul class="mt-10 grid grid-cols-2 gap-x-5 gap-y-8 sm:mt-16 sm:gap-x-10 sm:gap-y-12 lg:grid-cols-4">
         <li v-for="feature in features" :key="feature.label" class="group">
-          <span class="grid size-16 place-items-center rounded-[1.15rem] border border-white/70 bg-[image:var(--icon-gradient)] shadow-[0_8px_18px_-10px_rgb(29_29_31/0.35),inset_0_1px_0_white]">
-            <UIcon :name="feature.icon" class="size-7 text-[#2c2c2e]" :class="`motion-${feature.motion}`" />
+          <span class="grid size-12 place-items-center rounded-[0.9rem] sm:size-16 sm:rounded-[1.15rem] border border-white/70 bg-[image:var(--icon-gradient)] shadow-[0_8px_18px_-10px_rgb(29_29_31/0.35),inset_0_1px_0_white]">
+            <UIcon :name="feature.icon" class="size-5.5 text-[#2c2c2e] sm:size-7" :class="`motion-${feature.motion}`" />
           </span>
-          <h3 class="mt-5 font-display text-xl font-extrabold text-highlighted">
+          <h3 class="mt-3 font-display text-base leading-tight font-extrabold text-highlighted sm:mt-5 sm:text-xl">
             {{ feature.label }}
           </h3>
-          <p class="mt-1.5 max-w-[30ch] text-muted">
+          <p class="mt-1 max-w-[30ch] text-sm text-muted sm:mt-1.5 sm:text-base">
             {{ feature.text }}
           </p>
         </li>
