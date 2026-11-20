@@ -130,7 +130,8 @@ final class KeyInterceptor: ObservableObject {
         let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
         guard keyCode == Keycode.x || keyCode == Keycode.c || keyCode == Keycode.v,
               event.getIntegerValueField(.eventSourceUserData) != syntheticMarker,
-              isFrontmostAppFinder() else {
+              let finder = frontmostFinder(),
+              !isEditingText(in: finder) else {
             return Unmanaged.passUnretained(event)
         }
 
@@ -205,11 +206,44 @@ private enum Keycode {
     static let v: CGKeyCode = 9
 }
 
-private func isFrontmostAppFinder() -> Bool {
-    if let front = NSWorkspace.shared.frontmostApplication {
-        return front.bundleIdentifier == "com.apple.finder"
+private func frontmostFinder() -> NSRunningApplication? {
+    guard let front = NSWorkspace.shared.frontmostApplication,
+          front.bundleIdentifier == "com.apple.finder" else { return nil }
+    return front
+}
+
+private let editableTextRoles: Set<String> = [
+    kAXTextFieldRole as String,
+    kAXTextAreaRole as String,
+    kAXComboBoxRole as String
+]
+
+// Rename and search fields must keep the native text Cut/Copy/Paste.
+// Short timeout because this runs inside the event tap callback.
+private func isEditingText(in app: NSRunningApplication) -> Bool {
+    let appElement = AXUIElementCreateApplication(app.processIdentifier)
+    AXUIElementSetMessagingTimeout(appElement, 0.1)
+
+    var focusedValue: CFTypeRef?
+    let result = AXUIElementCopyAttributeValue(appElement, kAXFocusedUIElementAttribute as CFString, &focusedValue)
+    // Finder too busy to answer: leave the shortcut alone rather than risk eating a text cut.
+    if result == .cannotComplete { return true }
+    guard result == .success,
+          let focusedValue, CFGetTypeID(focusedValue) == AXUIElementGetTypeID() else {
+        return false
     }
-    return false
+    let focused = focusedValue as! AXUIElement
+    AXUIElementSetMessagingTimeout(focused, 0.1)
+
+    var roleValue: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(focused, kAXRoleAttribute as CFString, &roleValue) == .success,
+          let role = roleValue as? String, editableTextRoles.contains(role) else {
+        return false
+    }
+
+    var settable = DarwinBoolean(false)
+    return AXUIElementIsAttributeSettable(focused, kAXValueAttribute as CFString, &settable) == .success
+        && settable.boolValue
 }
 
 private func postShortcut(keyCode: CGKeyCode, flags: CGEventFlags) {
