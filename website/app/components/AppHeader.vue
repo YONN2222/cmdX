@@ -79,7 +79,7 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
           <UIcon :name="muted ? 'i-lucide-volume-x' : 'i-lucide-volume-2'" class="nav-icon size-5" />
         </button>
         <a
-          href="/download"
+          :href="stats?.dmgUrl ?? '/download'"
           class="nav-item group flex items-center gap-2 rounded-2xl bg-paper-deep px-5 py-3 font-display text-[1.05rem] font-extrabold text-highlighted transition-[background-color,transform] duration-200 hover:bg-[#e4e4de] active:scale-[0.96]"
           style="--enter-delay: 660ms"
           @click="onDownload('header', stats?.version)"
