@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cmdx-website",
+  "main": ".output/server/index.mjs",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".output/public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/_ux/*", "/api/*", "/download"],
+    "not_found_handling": "404-page"
+  },
+  "observability": { "enabled": true }
+}
